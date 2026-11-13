@@ -1,9 +1,11 @@
+# Patterns without **/ only match at the top of the build context.
 .venv
-__pycache__
-*.pyc
+**/__pycache__
+**/*.pyc
 tests
 .pytest_cache
 .ruff_cache
-*.db
-*.sqlite3
+**/*.db
+**/*.sqlite3
 .env
+.env.*
