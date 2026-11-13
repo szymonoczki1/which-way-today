@@ -1,0 +1,20 @@
+# env
+.env
+
+# python
+backend/.venv/
+backend/__pycache__/
+**/__pycache__/
+*.pyc
+backend/*.db
+backend/*.sqlite3
+
+# node
+frontend/node_modules/
+frontend/dist/
+
+# claude code local overrides
+.claude/settings.local.json
+
+# os
+.DS_Store
