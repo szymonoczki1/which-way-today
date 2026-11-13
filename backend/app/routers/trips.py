@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.models import Trip
 from app.repositories.trip_repository import TripRepository, get_trip_repository
-from app.schemas import TripCreate, TripRead, TripUpdate
+from app.schemas import TripComparison, TripCreate, TripRead, TripUpdate
+from app.services.comparison_service import compare_trip
 from app.services.trip_service import TripNotFoundError, TripService
 
 router = APIRouter(prefix="/trips", tags=["trips"])
@@ -46,3 +47,16 @@ def delete_trip(trip_id: int, service: TripService = Depends(get_trip_service)) 
         service.delete_trip(trip_id)
     except TripNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/{trip_id}/comparison", response_model=TripComparison)
+def get_trip_comparison(
+    trip_id: int, service: TripService = Depends(get_trip_service)
+) -> TripComparison:
+    # Uses the coordinates stored when the trip was saved -- no geocoding here.
+    # Always 200 for an existing trip: failed upstreams degrade to estimates.
+    try:
+        trip = service.get_trip(trip_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return compare_trip(trip)

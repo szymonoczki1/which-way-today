@@ -28,6 +28,36 @@ class TestGeocode:
         yield
         nominatim._cache.clear()
 
+    @pytest.fixture(autouse=True)
+    def _no_throttle_sleep(self) -> Iterator[MagicMock]:
+        with patch("app.clients.nominatim.time.sleep") as mock_sleep:
+            yield mock_sleep
+
+    @patch("app.clients.nominatim.httpx.get")
+    def test_throttles_to_one_request_per_second(
+        self, mock_get: MagicMock, _no_throttle_sleep: MagicMock
+    ) -> None:
+        mock_get.return_value = _response(json=[])
+        nominatim._last_request_at = 0.0
+
+        nominatim.geocode("first place")
+        nominatim.geocode("second place")
+
+        # The second call happens immediately after the first, so it must wait.
+        assert _no_throttle_sleep.called
+        waited = _no_throttle_sleep.call_args.args[0]
+        assert 0 < waited <= nominatim.MIN_INTERVAL_S
+
+    @patch("app.clients.nominatim.httpx.get")
+    def test_cache_is_bounded(self, mock_get: MagicMock) -> None:
+        mock_get.return_value = _response(json=[{"lat": "1", "lon": "2", "display_name": "x"}])
+
+        for i in range(nominatim.CACHE_MAX_ENTRIES + 5):
+            nominatim.geocode(f"address {i}")
+
+        assert len(nominatim._cache) == nominatim.CACHE_MAX_ENTRIES
+        assert "address 0" not in nominatim._cache
+
     @patch("app.clients.nominatim.httpx.get")
     def test_returns_coordinates_on_success(self, mock_get: MagicMock) -> None:
         mock_get.return_value = _response(
@@ -52,23 +82,27 @@ class TestGeocode:
         assert nominatim.geocode("a place that does not exist anywhere xyz123") is None
 
     @patch("app.clients.nominatim.httpx.get")
-    def test_returns_none_on_timeout(self, mock_get: MagicMock) -> None:
+    def test_raises_unavailable_on_timeout(self, mock_get: MagicMock) -> None:
         mock_get.side_effect = httpx.TimeoutException("timed out")
 
-        assert nominatim.geocode("Gdansk") is None
+        with pytest.raises(nominatim.GeocodingUnavailableError):
+            nominatim.geocode("Gdansk")
 
     @pytest.mark.parametrize("status_code", [403, 429])
     @patch("app.clients.nominatim.httpx.get")
-    def test_returns_none_when_blocked(self, mock_get: MagicMock, status_code: int) -> None:
+    def test_raises_unavailable_when_blocked(self, mock_get: MagicMock, status_code: int) -> None:
+        # A 403/429 means "we are rate-limited", not "address not found".
         mock_get.return_value = _response(status_code, json={"error": "blocked"})
 
-        assert nominatim.geocode("Gdansk") is None
+        with pytest.raises(nominatim.GeocodingUnavailableError):
+            nominatim.geocode("Gdansk")
 
     @patch("app.clients.nominatim.httpx.get")
-    def test_returns_none_on_non_json_body(self, mock_get: MagicMock) -> None:
+    def test_raises_unavailable_on_non_json_body(self, mock_get: MagicMock) -> None:
         mock_get.return_value = _response(text=HTML_PAGE)
 
-        assert nominatim.geocode("Gdansk") is None
+        with pytest.raises(nominatim.GeocodingUnavailableError):
+            nominatim.geocode("Gdansk")
 
     @pytest.mark.parametrize(
         "body",
@@ -79,10 +113,13 @@ class TestGeocode:
         ],
     )
     @patch("app.clients.nominatim.httpx.get")
-    def test_returns_none_on_unexpected_shape(self, mock_get: MagicMock, body: object) -> None:
+    def test_raises_unavailable_on_unexpected_shape(
+        self, mock_get: MagicMock, body: object
+    ) -> None:
         mock_get.return_value = _response(json=body)
 
-        assert nominatim.geocode("Gdansk") is None
+        with pytest.raises(nominatim.GeocodingUnavailableError):
+            nominatim.geocode("Gdansk")
 
     @patch("app.clients.nominatim.httpx.get")
     def test_caches_successful_lookups(self, mock_get: MagicMock) -> None:
@@ -103,7 +140,8 @@ class TestGeocode:
             _response(json=[{"lat": "54.35", "lon": "18.64", "display_name": "Gdansk"}]),
         ]
 
-        assert nominatim.geocode("Gdansk") is None
+        with pytest.raises(nominatim.GeocodingUnavailableError):
+            nominatim.geocode("Gdansk")
         assert nominatim.geocode("Gdansk") is not None
         assert mock_get.call_count == 2
 

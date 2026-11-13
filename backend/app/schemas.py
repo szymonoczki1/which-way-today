@@ -1,6 +1,9 @@
 from datetime import time
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.clients.schemas import WeatherResult
 
 
 class TripBase(BaseModel):
@@ -28,3 +31,23 @@ class TripUpdate(TripBase):
 
 class TripRead(TripBase):
     id: int
+
+
+class ModeOption(BaseModel):
+    mode: Literal["walk", "bike", "transit", "car"]
+    duration_min: float
+    distance_km: float
+    cost_pln: float
+    co2_g: int
+    # True when the numbers come from static factors instead of a live route
+    # (always true for transit; true for other modes if OSRM failed or timed out).
+    is_estimate: bool
+    # [[lat, lon], ...] for a Leaflet Polyline; None for estimates and transit.
+    geometry: list[list[float]] | None = None
+
+
+class TripComparison(BaseModel):
+    trip_id: int
+    # None if Open-Meteo failed or timed out; the comparison is still returned.
+    weather: WeatherResult | None
+    options: list[ModeOption]

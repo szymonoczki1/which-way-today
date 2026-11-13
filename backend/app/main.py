@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.db import init_db
-from app.routers import trips
+from app.routers import geocode, trips
 
 
 @asynccontextmanager
@@ -32,6 +32,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(trips.router)
+    app.include_router(geocode.router)
 
     return app
 
