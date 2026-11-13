@@ -38,3 +38,13 @@ def _clear_shared_comparisons():
     comparison_service._shared.clear()
     yield
     comparison_service._shared.clear()
+
+
+@pytest.fixture(autouse=True)
+def _no_real_transitous(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch):
+    # Never call the real journey planner from tests; a test's own @patch
+    # (applied after fixtures) overrides this when it needs a journey. The
+    # client's own tests mock httpx instead, so they keep the real plan().
+    if request.module.__name__.endswith("test_transitous"):
+        return
+    monkeypatch.setattr(comparison_service.transitous, "plan", lambda *a, **k: None)

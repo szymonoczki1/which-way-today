@@ -18,8 +18,41 @@ export function formatDistance(km: number): string {
   return `${value} km`;
 }
 
-export function formatCost(pln: number): string {
+export function formatCost(pln: number | null): string {
+  if (pln === null) return "Varies"; // depends on operator / ticket type
   return pln === 0 ? "Free" : `${pln.toFixed(2)} zł`;
+}
+
+const ZONE = "Europe/Warsaw"; // trips are in Gdańsk, whatever the viewer's zone
+const CLOCK = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: ZONE,
+});
+const DAY = new Intl.DateTimeFormat("en-CA", { timeZone: ZONE }); // YYYY-MM-DD
+const WEEKDAY = new Intl.DateTimeFormat("en-GB", {
+  weekday: "short",
+  timeZone: ZONE,
+});
+
+/** "2026-11-14T07:04:00Z" -> "08:04" (Gdańsk time); "" if unparseable. */
+export function formatClock(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? "" : CLOCK.format(date);
+}
+
+/** Departure with its day when it isn't today: "08:04", "04:30 tomorrow", "08:00 on Mon". */
+export function formatDeparture(iso: string, now: Date = new Date()): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const days = Math.round(
+    (Date.parse(DAY.format(date)) - Date.parse(DAY.format(now))) / 86_400_000,
+  );
+  const clock = CLOCK.format(date);
+  if (days === 0) return clock;
+  if (days === 1) return `${clock} tomorrow`;
+  return `${clock} on ${WEEKDAY.format(date)}`;
 }
 
 export function formatCo2(grams: number): string {

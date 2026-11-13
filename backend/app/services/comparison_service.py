@@ -1,8 +1,9 @@
 """Compare walk / bike / transit / car for a saved trip.
 
-Live data: OSRM routes (walk, bike, car) and Open-Meteo current weather, fetched
-concurrently under one overall deadline. Anything that fails or misses the
-deadline falls back to the static factors below, so the endpoint always answers.
+Live data: OSRM routes (walk, bike, car), a Transitous public transport
+journey and Open-Meteo current weather, fetched concurrently under one overall
+deadline. Anything that fails or misses the deadline falls back to the static
+factors below, so the endpoint always answers.
 """
 
 import logging
@@ -10,9 +11,12 @@ import math
 import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor, wait
+from datetime import UTC, datetime, timedelta
+from datetime import time as clock_time
+from zoneinfo import ZoneInfo
 
-from app.clients import open_meteo, osrm
-from app.clients.schemas import RouteResult
+from app.clients import open_meteo, osrm, transitous
+from app.clients.schemas import RouteResult, TransitJourney
 from app.models import Trip
 from app.schemas import ModeOption, TripComparison
 
@@ -25,8 +29,9 @@ DEADLINE_S = 6.0
 
 # One shared, capped pool: a thread that misses the deadline can't be killed and
 # keeps running until its HTTP call ends, so a per-request pool would let threads
-# pile up without limit while an upstream is degraded. 16 = 4 concurrent comparisons.
-_executor = ThreadPoolExecutor(max_workers=16, thread_name_prefix="comparison")
+# pile up without limit while an upstream is degraded. 5 calls per comparison
+# (3 routes, weather, transit), so 20 = 4 concurrent comparisons.
+_executor = ThreadPoolExecutor(max_workers=20, thread_name_prefix="comparison")
 
 # --- Static factors (MVP assumptions; documented so they can be defended/updated) ---
 
@@ -38,12 +43,35 @@ WALK_SPEED_KMH = 5.0
 BIKE_SPEED_KMH = 15.0
 CAR_SPEED_KMH = 35.0  # urban average incl. lights/junctions, no live traffic
 
-# Public transport has no live routing in the MVP: always estimated from the
-# car route distance (transit follows roads/tracks roughly like a car does).
-TRANSIT_SPEED_KMH = 20.0  # average in-vehicle speed for urban tram/bus
-TRANSIT_OVERHEAD_MIN = 8.0  # walking to/from stops + average wait
+# Public transport: a real Transitous journey when available. If not (failure,
+# timeout, no connection), estimated from the car route distance.
+TRANSIT_SPEED_KMH = 20.0  # estimate: average in-vehicle speed for urban tram/bus
+TRANSIT_OVERHEAD_MIN = 8.0  # estimate: walking to/from stops + average wait
 TRANSIT_TICKET_PLN = 4.80  # ZTM Gdansk normal (full-price) single ticket; confirmed 2026-11
-TRANSIT_CO2_G_PER_KM = 60.0  # per passenger-km, mixed tram/bus average
+TRANSIT_CO2_G_PER_KM = 60.0  # estimate: per passenger-km, mixed tram/bus average
+# A real journey shows a price only for one ride with ZTM Gdańsk (the single ticket
+# above). Changes need a time ticket, and other operators have their own fares.
+ZTM_GDANSK_AGENCY = "Zarząd Transportu Miejskiego w Gdańsku"
+# Per passenger-km by Transitous mode (typical averages; rail is mostly electric).
+TRANSIT_CO2_G_PER_KM_BY_MODE = {
+    "BUS": 70.0,
+    "COACH": 30.0,
+    "TRAM": 40.0,
+    "SUBWAY": 35.0,
+    "METRO": 35.0,
+    "SUBURBAN": 35.0,
+    "RAIL": 35.0,
+    "REGIONAL_RAIL": 35.0,
+    "REGIONAL_FAST_RAIL": 35.0,
+    "LONG_DISTANCE": 35.0,
+    "HIGHSPEED_RAIL": 35.0,
+    "NIGHT_RAIL": 35.0,
+    "FERRY": 120.0,
+}
+NON_RIDE_MODES = {"WALK", "BIKE", "CAR"}
+
+# Trips are local to Gdańsk; departure times are wall-clock times there.
+LOCAL_TZ = ZoneInfo("Europe/Warsaw")
 
 CAR_COST_PLN_PER_KM = 0.45  # fuel only: ~7 L/100 km x ~6.4 PLN/L
 CAR_CO2_G_PER_KM = 170.0  # average real-world passenger car, single occupant
@@ -52,16 +80,24 @@ CAR_CO2_G_PER_KM = 170.0  # average real-world passenger car, single occupant
 # /comparison and /recommendation are requested together for the same trip view.
 # Sharing one computation keeps their numbers identical (no badge on a card the
 # recommendation's own numbers wouldn't pick) and halves upstream calls. Keyed by
-# id *and* coordinates, since SQLite can reuse a deleted trip's id.
+# id, coordinates *and* departure time, since SQLite can reuse a deleted trip's id
+# and the transit journey depends on when you leave.
 SHARED_TTL_S = 60.0
-_shared: dict[tuple[int, float, float, float, float], tuple[float, Future[TripComparison]]] = {}
+_shared: dict[tuple[object, ...], tuple[float, Future[TripComparison]]] = {}
 _shared_lock = threading.Lock()
 
 
 def get_shared_comparison(trip: Trip) -> TripComparison:
     """compare_trip, but concurrent/recent calls for the same trip share one result."""
     assert trip.id is not None, "only saved trips can be compared"
-    key = (trip.id, trip.origin_lat, trip.origin_lon, trip.destination_lat, trip.destination_lon)
+    key = (
+        trip.id,
+        trip.origin_lat,
+        trip.origin_lon,
+        trip.destination_lat,
+        trip.destination_lon,
+        trip.usual_departure_time,
+    )
     now = time.monotonic()
     with _shared_lock:
         for stale in [k for k, (at, _) in _shared.items() if now - at > SHARED_TTL_S]:
@@ -101,7 +137,16 @@ def compare_trip(trip: Trip, deadline_s: float = DEADLINE_S) -> TripComparison:
     weather_future = _executor.submit(
         open_meteo.get_current_weather, trip.origin_lat, trip.origin_lon
     )
-    futures = [*route_futures.values(), weather_future]
+    depart_at = next_departure_utc(trip.usual_departure_time)
+    transit_future = _executor.submit(
+        transitous.plan,
+        trip.origin_lat,
+        trip.origin_lon,
+        trip.destination_lat,
+        trip.destination_lon,
+        depart_at=depart_at,
+    )
+    futures = [*route_futures.values(), weather_future, transit_future]
     wait(futures, timeout=deadline_s)
     for future in futures:
         # Drops calls still queued behind other requests; running ones can't be
@@ -112,6 +157,7 @@ def compare_trip(trip: Trip, deadline_s: float = DEADLINE_S) -> TripComparison:
     bike_route = _result_or_none(route_futures["cycling"], "cycling route")
     car_route = _result_or_none(route_futures["driving"], "driving route")
     weather = _result_or_none(weather_future, "weather")
+    journey = _result_or_none(transit_future, "transit journey")
 
     crow_km = _haversine_km(
         trip.origin_lat, trip.origin_lon, trip.destination_lat, trip.destination_lon
@@ -120,15 +166,18 @@ def compare_trip(trip: Trip, deadline_s: float = DEADLINE_S) -> TripComparison:
         "car", car_route, crow_km, CAR_SPEED_KMH, CAR_COST_PLN_PER_KM, CAR_CO2_G_PER_KM
     )
 
-    transit_km = car.distance_km
-    transit = ModeOption(
-        mode="transit",
-        duration_min=round(transit_km / TRANSIT_SPEED_KMH * 60 + TRANSIT_OVERHEAD_MIN, 1),
-        distance_km=transit_km,
-        cost_pln=TRANSIT_TICKET_PLN,
-        co2_g=round(transit_km * TRANSIT_CO2_G_PER_KM),
-        is_estimate=True,
-    )
+    if journey is not None:
+        transit = _journey_option(journey, depart_at)
+    else:
+        transit_km = car.distance_km
+        transit = ModeOption(
+            mode="transit",
+            duration_min=round(transit_km / TRANSIT_SPEED_KMH * 60 + TRANSIT_OVERHEAD_MIN, 1),
+            distance_km=transit_km,
+            cost_pln=TRANSIT_TICKET_PLN,
+            co2_g=round(transit_km * TRANSIT_CO2_G_PER_KM),
+            is_estimate=True,
+        )
 
     return TripComparison(
         trip_id=trip.id,
@@ -139,6 +188,54 @@ def compare_trip(trip: Trip, deadline_s: float = DEADLINE_S) -> TripComparison:
             transit,
             car,
         ],
+    )
+
+
+def next_departure_utc(departure: clock_time | None, now_utc: datetime | None = None) -> datetime:
+    """Next occurrence of a local (Gdańsk) wall-clock departure, as a UTC instant.
+
+    zoneinfo applies the offset valid *on that day*, so DST changes are handled.
+    Without a usual departure time, "now".
+    """
+    now_utc = now_utc or datetime.now(UTC)
+    if departure is None:
+        return now_utc
+    local_now = now_utc.astimezone(LOCAL_TZ)
+    target = datetime.combine(local_now.date(), departure, tzinfo=LOCAL_TZ)
+    # Compare instants (UTC): comparing wall-clock times with one ZoneInfo ignores
+    # `fold`, so in the repeated autumn hour a past time could look like the future.
+    if target.astimezone(UTC) < now_utc:
+        target = datetime.combine(local_now.date() + timedelta(days=1), departure, tzinfo=LOCAL_TZ)
+    return target.astimezone(UTC)
+
+
+def _journey_option(journey: TransitJourney, depart_at: datetime) -> ModeOption:
+    rides = [leg for leg in journey.legs if leg.mode not in NON_RIDE_MODES]
+    single_ztm_ride = len(rides) == 1 and rides[0].agency == ZTM_GDANSK_AGENCY
+    if not rides:
+        cost: float | None = 0.0  # walking-only "journey"
+    elif single_ztm_ride:
+        cost = TRANSIT_TICKET_PLN
+    else:
+        cost = None  # price varies by operator / ticket type
+    co2 = sum(
+        leg.distance_km * TRANSIT_CO2_G_PER_KM_BY_MODE.get(leg.mode, TRANSIT_CO2_G_PER_KM)
+        for leg in rides
+    )
+    # Door to door from when you want to leave: includes waiting for the first
+    # departure, so a tram at 04:30 isn't "25 min" when you asked for 23:30.
+    arrival = datetime.fromisoformat(journey.end_time.replace("Z", "+00:00"))
+    door_to_door_min = max(journey.duration_min, (arrival - depart_at).total_seconds() / 60)
+    return ModeOption(
+        mode="transit",
+        duration_min=round(door_to_door_min, 1),
+        distance_km=round(sum(leg.distance_km for leg in journey.legs), 2),
+        cost_pln=cost,
+        co2_g=round(co2),
+        is_estimate=False,
+        # One continuous line for the map; per-leg lines are in `legs`.
+        geometry=[point for leg in journey.legs for point in leg.geometry],
+        legs=journey.legs,
     )
 
 

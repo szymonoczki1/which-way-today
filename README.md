@@ -27,8 +27,13 @@ bike ride on a dry morning and a miserable one in sleet. This app puts the trade
 - **Saved trips.** Name, origin, destination and an optional usual departure time.
   Addresses are geocoded once when a trip is saved; you see whether an address wasn't
   found or the lookup service is temporarily down.
-- **Four-way comparison.** Walk, bike and car use real street routes (OSRM); each mode
-  shows time, distance, cost and CO₂, with its route drawn on the map.
+- **Four-way comparison.** Walk, bike and car use real street routes (OSRM). Public
+  transport is a real timetable journey ([Transitous](https://transitous.org/)) for your
+  next usual departure: buses, trams and trains, e.g. "🚶 3 min → 🚋 Tram 6 · 9 min →
+  🚶 9 min, leaves 08:04", or "🚆 Train EIP · 2 h 29 min" for Gdańsk → Warsaw (journeys
+  with more than 4 legs are summarised, e.g. "🚆 Train IC · 1 change"). The time is
+  door to door from your departure time, including any wait for the first vehicle.
+  Each mode shows time, distance, cost and CO₂, with its route drawn on the map.
 - **Weather-aware recommendation.** Uses the hourly forecast for your next departure
   ("Forecast tomorrow at 08:00: …"), or current weather if no time is set. Deterministic
   rules rule out unsuitable modes (too long, too wet, too windy, icy) and pick the
@@ -36,8 +41,9 @@ bike ride on a dry morning and a miserable one in sleet. This app puts the trade
 - **Optional AI.** With an OpenAI key, the model chooses among the *suitable* modes and
   explains why. Without a key, or if the AI fails, the rule-based answer is used: the app
   never depends on it.
-- **Honest numbers.** Anything not from a live route (public transport always; other
-  modes when a routing call fails) is marked `~` / *Estimate*.
+- **Honest numbers.** Anything not from a live route or timetable (a mode whose
+  upstream call failed or found nothing) is marked `~` / *Estimate*. Public transport
+  shows a price only when it's known (a single ZTM Gdańsk ride); otherwise "Varies".
 - **Works on phones.** Single-column layout; picking a trip scrolls its map and
   comparison into view.
 
@@ -156,19 +162,26 @@ All free and keyless except the optional OpenAI one.
 | [Nominatim](https://nominatim.org/) (OpenStreetMap) | Geocoding | Descriptive User-Agent, 1 request/s throttle, cache |
 | [OSRM demo server](https://project-osrm.org/) | Car routes | Short timeouts, fallback to estimates |
 | [FOSSGIS OSRM](https://routing.openstreetmap.de/) | Walking and cycling routes (the demo server only serves car) | Short timeouts, fallback to estimates |
+| [Transitous](https://transitous.org/) | Public transport journeys (timetables) | Descriptive User-Agent, one request per trip comparison (shared, cached), visible [data-sources](https://transitous.org/sources/) link; falls back to an estimate |
 | [Open-Meteo](https://open-meteo.com/) | Current weather and hourly forecast | Short timeouts; recommendation works without weather |
 | [OpenStreetMap tiles](https://operations.osmfoundation.org/policies/tiles/) | Map background | Visible attribution |
 | OpenAI Chat Completions *(optional)* | Recommendation wording | Off without a key; any failure falls back to rules |
 
 ## Assumptions and known limitations
 
-- **Public transport is an estimate,** not a timetable: car-route distance at 20 km/h
-  plus 8 min for walking to/from stops and waiting, at a flat single fare of
-  **4.80 PLN** (ZTM Gdańsk normal single ticket; reduced fares not modelled). Car cost is fuel
-  only (~0.45 PLN/km); CO₂ factors are typical averages (car 170 g/km, transit
-  60 g/passenger-km). All factors are documented constants in
+- **Public transport fares:** a price is shown only for a single ride with ZTM Gdańsk
+  (**4.80 PLN**, normal single ticket; reduced fares not modelled). Journeys with a change
+  or other operators (PolRegio, PKP Intercity…) show "Varies".
+- **SKM Trójmiasto is missing from Transitous's data,** so some Tricity journeys use
+  PolRegio or Intercity trains or buses instead. Within Gdańsk, trams and buses cover it.
+- **Transit time includes the wait** for the first departure, so it's comparable with
+  driving; the card also says when the journey leaves (e.g. "Leaves 09:02").
+- **Fallback estimate:** if Transitous fails or finds nothing, public transport is
+  estimated from the car-route distance at 20 km/h plus 8 min, and marked *Estimate*.
+- **Factors:** car cost is fuel only (~0.45 PLN/km); CO₂ uses typical averages per
+  passenger-km (car 170 g, bus 70, tram 40, rail 35). All are documented constants in
   `backend/app/services/comparison_service.py`.
-- **One mode per trip.** No bike + train or park & ride.
+- **No bike + transit combinations** (bike to the station, park & ride).
 - **Forecast hour on DST weekends** can be off by an hour (Open-Meteo applies one UTC
   offset to the whole forecast).
 - **No accounts:** everyone using an instance sees the same trips.
@@ -179,11 +192,11 @@ All free and keyless except the optional OpenAI one.
 
 ## Roadmap
 
-1. **Real public transport** via [Transitous](https://transitous.org/) (free, keyless,
-   MOTIS-based): actual itineraries with walking legs and transfers, replacing the
-   estimate and enabling multimodal trips.
-2. **Traffic-aware car times** via TomTom Routing (optional key, OSRM fallback).
-3. **"Best time to leave":** sample departures across a window and chart car vs transit.
+1. **Traffic-aware car times** via TomTom Routing (optional key, OSRM fallback).
+2. **"Best time to leave":** sample departures across a window and chart car vs transit
+   (Transitous already returns several departures per request).
+3. **Fares for multi-leg journeys** (ZTM time tickets, Tricity metropolitan tickets).
+4. **SKM Trójmiasto,** if its timetable becomes available in Transitous.
 
 ## How this was built (Claude Code setup)
 

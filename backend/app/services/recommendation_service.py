@@ -117,7 +117,7 @@ def rule_based_recommendation(
         }[mode]
     )
     if mode != "car" and car.co2_g > chosen.co2_g:
-        reasons.append(f"Saves {car.co2_g - chosen.co2_g} g CO₂ compared with driving.")
+        reasons.append(f"Saves {_co2(car.co2_g - chosen.co2_g)} CO₂ compared with driving.")
 
     return RuleResult(recommended_mode=mode, reasons=reasons, unsuitable=unsuitable)
 
@@ -167,7 +167,16 @@ def _condition(code: int) -> str:
 
 
 def _minutes(option: ModeOption) -> str:
-    return f"{max(1, round(option.duration_min))} min"
+    """ "11 min", or "2 h 32 min" for long trips (same style as the frontend cards)."""
+    total = max(1, round(option.duration_min))
+    hours, mins = divmod(total, 60)
+    if hours == 0:
+        return f"{mins} min"
+    return f"{hours} h" if mins == 0 else f"{hours} h {mins} min"
+
+
+def _co2(grams: int) -> str:
+    return f"{grams} g" if grams < 1000 else f"{grams / 1000:.1f} kg"
 
 
 # --- AI layer -----------------------------------------------------------------
@@ -176,6 +185,9 @@ SYSTEM_PROMPT = """You help a commuter choose how to travel for one trip.
 You get a JSON object with: the travel options (mode, duration_min, distance_km,
 cost_pln, co2_g, is_estimate), the weather and when it applies (or null),
 unsuitable_modes (modes ruled out, with the reason), and a rule_based_suggestion.
+For public transport, duration_min is door to door and includes any wait for the
+first departure; "rides" lists the lines used (e.g. "TRAM 6"). cost_pln null means
+the fare is unknown (it varies by operator): never state a price for it.
 Use ONLY these facts; never invent numbers, places or times.
 Never choose a mode listed in unsuitable_modes. Prefer greener modes when the
 weather and time make them reasonable.
@@ -197,6 +209,16 @@ class _AiAnswer(BaseModel):
         return cleaned
 
 
+def _option_facts(option: ModeOption) -> dict[str, object]:
+    """Numbers only: no route geometry (hundreds of points), just the lines used."""
+    facts = option.model_dump(exclude={"geometry", "legs"})
+    if option.legs:
+        facts["rides"] = [
+            f"{leg.mode} {leg.line}".strip() for leg in option.legs if leg.mode != "WALK"
+        ]
+    return facts
+
+
 def _ai_settings() -> tuple[str | None, str]:
     settings = get_settings()
     return settings.openai_api_key, settings.openai_model
@@ -211,7 +233,7 @@ def _ai_recommendation(
 
     # Only numbers and weather: never the trip's name or addresses.
     facts = {
-        "options": [o.model_dump(exclude={"geometry"}) for o in options],
+        "options": [_option_facts(o) for o in options],
         "weather": weather.model_dump() if weather else None,
         "weather_time": when,
         "unsuitable_modes": rules.unsuitable,

@@ -5,7 +5,8 @@ Recruitment-task MVP for the Xelerit Winter Internship. Full-stack, transport-th
 ## What it does
 
 Users save trips (name, origin, destination, optional usual departure time). For a saved
-trip, the app compares walk / bike / public transport / car by time, cost, and CO2, then
+trip, the app compares walk / bike / public transport (real timetable journeys via
+Transitous) / car by time, cost, and CO2, then
 gives a weather-aware recommendation using the forecast for the departure time (e.g. rain
 at 08:00 → take public transport). Deterministic rules decide which modes are suitable; an
 optional AI model (OPENAI_API_KEY) picks among those and explains why, with the rules as
@@ -15,7 +16,8 @@ the keyless fallback. (Eco-points were in the original plan and were dropped.)
 
 ```
 backend/    FastAPI + SQLModel + SQLite. Layers: routers -> services -> repositories,
-            plus clients/ for external APIs (Nominatim, OSRM, Open-Meteo, LLM).
+            plus clients/ for external APIs (Nominatim, OSRM, Transitous,
+            Open-Meteo, LLM).
 frontend/   React + Vite + TypeScript. TanStack Query for server state, Tailwind for
             styling, Leaflet for the map.
 ```

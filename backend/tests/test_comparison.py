@@ -1,17 +1,21 @@
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
+from datetime import time as clock_time
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.clients.schemas import RouteResult, WeatherResult
+from app.clients.schemas import RouteResult, TransitJourney, TransitLeg, WeatherResult
 from app.models import Trip
 from app.services import comparison_service
 from app.services.comparison_service import compare_trip
 
 OSRM = "app.services.comparison_service.osrm.get_route"
 WEATHER = "app.services.comparison_service.open_meteo.get_current_weather"
+TRANSIT = "app.services.comparison_service.transitous.plan"
+ZTM = comparison_service.ZTM_GDANSK_AGENCY
 
 TRIP = Trip(
     id=1,
@@ -281,6 +285,222 @@ class TestSharedComparison:
         assert mock_route.call_count == 6
 
 
+def _ride(mode: str, line: str, agency: str | None, km: float) -> TransitLeg:
+    return TransitLeg(
+        mode=mode,
+        line=line,
+        headsign="X",
+        agency=agency,
+        from_name="A",
+        to_name="B",
+        start_time="2026-11-14T07:04:00Z",
+        end_time="2026-11-14T07:15:00Z",
+        duration_min=11,
+        distance_km=km,
+        geometry=[[54.356, 18.645], [54.37, 18.615]],
+    )
+
+
+def _walk(km: float) -> TransitLeg:
+    return TransitLeg(
+        mode="WALK",
+        line=None,
+        headsign=None,
+        agency=None,
+        from_name="A",
+        to_name="B",
+        start_time="2026-11-14T07:00:00Z",
+        end_time="2026-11-14T07:04:00Z",
+        duration_min=4,
+        distance_km=km,
+        geometry=[[54.3557, 18.644], [54.356, 18.645]],
+    )
+
+
+def _journey(*legs: TransitLeg, minutes: float = 25, transfers: int = 0) -> TransitJourney:
+    return TransitJourney(
+        duration_min=minutes,
+        transfers=transfers,
+        start_time=legs[0].start_time,
+        end_time=legs[-1].end_time,
+        legs=list(legs),
+    )
+
+
+class TestRealTransit:
+    @patch(TRANSIT)
+    @patch(WEATHER, return_value=WEATHER_OK)
+    @patch(OSRM, side_effect=_fake_route)
+    def test_uses_the_real_journey(self, _r: MagicMock, _w: MagicMock, plan: MagicMock) -> None:
+        plan.return_value = _journey(_walk(0.3), _ride("TRAM", "6", ZTM, 2.6), _walk(0.6))
+        # Leave exactly when the journey starts: no wait on top of its 25 min.
+        depart_at = datetime(2026, 11, 14, 7, 0, tzinfo=UTC)
+
+        with patch(f"{comparison_service.__name__}.next_departure_utc", return_value=depart_at):
+            transit = _by_mode(compare_trip(TRIP))["transit"]
+
+        assert transit.is_estimate is False
+        assert transit.duration_min == 25
+        assert transit.distance_km == 3.5
+        assert [leg.mode for leg in transit.legs] == ["WALK", "TRAM", "WALK"]
+        # One continuous line for the map: all legs' points, in order.
+        assert transit.geometry[0] == [54.3557, 18.644]
+        assert transit.geometry[-1] == transit.legs[-1].geometry[-1]
+        # A single ZTM Gdańsk ride: normal single ticket.
+        assert transit.cost_pln == comparison_service.TRANSIT_TICKET_PLN
+        # CO2 per leg by mode; walking is free.
+        assert transit.co2_g == round(2.6 * comparison_service.TRANSIT_CO2_G_PER_KM_BY_MODE["TRAM"])
+
+    @pytest.mark.parametrize(
+        "legs",
+        [
+            # Change inside ZTM: a single ticket doesn't cover it.
+            (
+                _ride("TRAM", "6", "Zarząd Transportu Miejskiego w Gdańsku", 2),
+                _ride("BUS", "168", "Zarząd Transportu Miejskiego w Gdańsku", 1),
+            ),
+            (_ride("REGIONAL_RAIL", "REG", "PolRegio", 20),),
+            (_ride("LONG_DISTANCE", "IC", "PKP Intercity", 340),),
+            (_ride("BUS", "1", None, 3),),
+        ],
+    )
+    @patch(TRANSIT)
+    @patch(WEATHER, return_value=WEATHER_OK)
+    @patch(OSRM, side_effect=_fake_route)
+    def test_price_is_unknown_unless_a_single_ztm_ride(
+        self, _r: MagicMock, _w: MagicMock, plan: MagicMock, legs: tuple[TransitLeg, ...]
+    ) -> None:
+        plan.return_value = _journey(*legs, transfers=len(legs) - 1)
+
+        transit = _by_mode(compare_trip(TRIP))["transit"]
+
+        assert transit.cost_pln is None
+        assert transit.is_estimate is False
+
+    @patch(TRANSIT)
+    @patch(WEATHER, return_value=WEATHER_OK)
+    @patch(OSRM, side_effect=_fake_route)
+    def test_rail_co2_uses_the_rail_factor(
+        self, _r: MagicMock, _w: MagicMock, plan: MagicMock
+    ) -> None:
+        plan.return_value = _journey(_ride("LONG_DISTANCE", "IC", "PKP Intercity", 340))
+
+        transit = _by_mode(compare_trip(TRIP))["transit"]
+
+        rail = comparison_service.TRANSIT_CO2_G_PER_KM_BY_MODE["LONG_DISTANCE"]
+        assert transit.co2_g == round(340 * rail)
+
+    @patch(TRANSIT, return_value=None)
+    @patch(WEATHER, return_value=WEATHER_OK)
+    @patch(OSRM, side_effect=_fake_route)
+    def test_falls_back_to_the_estimate_without_a_journey(self, *_: MagicMock) -> None:
+        transit = _by_mode(compare_trip(TRIP))["transit"]
+
+        assert transit.is_estimate is True
+        assert transit.legs is None
+        assert transit.cost_pln == comparison_service.TRANSIT_TICKET_PLN
+
+    @patch(TRANSIT)
+    @patch(WEATHER, return_value=WEATHER_OK)
+    @patch(OSRM, side_effect=_fake_route)
+    def test_slow_journey_planner_does_not_exceed_the_deadline(
+        self, _r: MagicMock, _w: MagicMock, plan: MagicMock
+    ) -> None:
+        def slow(*_: object, **__: object) -> TransitJourney:
+            time.sleep(0.3)
+            return _journey(_ride("TRAM", "6", ZTM, 2))
+
+        plan.side_effect = slow
+        started = time.monotonic()
+
+        transit = _by_mode(compare_trip(TRIP, deadline_s=0.05))["transit"]
+
+        assert time.monotonic() - started < 0.25
+        assert transit.is_estimate is True
+
+    @patch(TRANSIT, return_value=None)
+    @patch(WEATHER, return_value=WEATHER_OK)
+    @patch(OSRM, side_effect=_fake_route)
+    def test_asks_for_the_trips_next_usual_departure(
+        self, _r: MagicMock, _w: MagicMock, plan: MagicMock
+    ) -> None:
+        compare_trip(TRIP.model_copy(update={"usual_departure_time": clock_time(8, 0)}))
+
+        depart_at = plan.call_args.kwargs["depart_at"]
+        assert depart_at.tzinfo is not None
+        local = depart_at.astimezone(comparison_service.LOCAL_TZ)
+        assert (local.hour, local.minute) == (8, 0)
+
+
+class TestTransitWait:
+    @patch(TRANSIT)
+    @patch(WEATHER, return_value=WEATHER_OK)
+    @patch(OSRM, side_effect=_fake_route)
+    def test_duration_counts_the_wait_before_the_first_departure(
+        self, _r: MagicMock, _w: MagicMock, plan: MagicMock
+    ) -> None:
+        # Asked to leave at 23:30; first tram journey starts 04:30 and takes 25 min.
+        depart_at = datetime(2026, 11, 14, 22, 30, tzinfo=UTC)
+        walk = _walk(0.3).model_copy(
+            update={"start_time": "2026-11-15T03:30:00Z", "end_time": "2026-11-15T03:34:00Z"}
+        )
+        ride = _ride("TRAM", "6", ZTM, 2.6).model_copy(
+            update={"start_time": "2026-11-15T03:34:00Z", "end_time": "2026-11-15T03:55:00Z"}
+        )
+        plan.return_value = TransitJourney(
+            duration_min=25,
+            transfers=0,
+            start_time="2026-11-15T03:30:00Z",
+            end_time="2026-11-15T03:55:00Z",
+            legs=[walk, ride],
+        )
+
+        with patch(f"{comparison_service.__name__}.next_departure_utc", return_value=depart_at):
+            transit = _by_mode(compare_trip(TRIP))["transit"]
+
+        # Door to door from when you wanted to leave: 5 h 25 min, not 25 min.
+        assert transit.duration_min == 325
+
+
+class TestNextDepartureUtc:
+    def test_winter_08_00_in_gdansk_is_07_00_utc(self) -> None:
+        now = datetime(2026, 11, 14, 5, 0, tzinfo=UTC)  # 06:00 local
+        assert comparison_service.next_departure_utc(clock_time(8, 0), now) == datetime(
+            2026, 11, 14, 7, 0, tzinfo=UTC
+        )
+
+    def test_summer_08_00_in_gdansk_is_06_00_utc(self) -> None:
+        now = datetime(2026, 7, 1, 3, 0, tzinfo=UTC)
+        assert comparison_service.next_departure_utc(clock_time(8, 0), now) == datetime(
+            2026, 7, 1, 6, 0, tzinfo=UTC
+        )
+
+    def test_already_passed_today_uses_tomorrow(self) -> None:
+        now = datetime(2026, 11, 14, 8, 0, tzinfo=UTC)  # 09:00 local
+        assert comparison_service.next_departure_utc(clock_time(8, 0), now) == datetime(
+            2026, 11, 15, 7, 0, tzinfo=UTC
+        )
+
+    def test_across_the_dst_change(self) -> None:
+        # Saturday 2026-10-24 evening; Sunday's 08:00 is already CET (UTC+1).
+        now = datetime(2026, 10, 24, 20, 0, tzinfo=UTC)
+        assert comparison_service.next_departure_utc(clock_time(8, 0), now) == datetime(
+            2026, 10, 25, 7, 0, tzinfo=UTC
+        )
+
+    def test_autumn_overlap_never_returns_a_past_instant(self) -> None:
+        # 2026-10-25 01:20 UTC = 02:20 CET (second pass of the repeated hour).
+        now = datetime(2026, 10, 25, 1, 20, tzinfo=UTC)
+
+        result = comparison_service.next_departure_utc(clock_time(2, 30), now)
+
+        assert result >= now
+
+    def test_without_a_usual_time_uses_now(self) -> None:
+        now = datetime(2026, 11, 14, 12, 34, tzinfo=UTC)
+        assert comparison_service.next_departure_utc(None, now) == now
+
+
 VALID_TRIP = {
     "name": "Home -> Uni",
     "origin_address": "Gdansk Main Station",
@@ -315,6 +535,7 @@ class TestComparisonEndpoint:
             "co2_g",
             "is_estimate",
             "geometry",
+            "legs",
         }
 
     @patch(WEATHER, return_value=None)

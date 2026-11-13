@@ -1,6 +1,6 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../../lib/api";
 import { ApiError } from "../../lib/api";
@@ -291,5 +291,161 @@ describe("ComparisonPanel", () => {
       name: /current weather/i,
     });
     expect(weather).toHaveTextContent(/^current weather/i);
+  });
+
+  describe("real public transport journeys", () => {
+    // Fixtures depart on Sat 14 Nov; pin "now" to that morning so the departure
+    // reads as today. Only Date is faked: TanStack Query's timers stay real.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-11-14T06:00:00Z"));
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function leg(
+      mode: string,
+      line: string | null,
+      start: string,
+      end: string,
+      extra = {},
+    ) {
+      const minutes = (Date.parse(end) - Date.parse(start)) / 60000;
+      return {
+        mode,
+        line,
+        headsign: null,
+        agency: null,
+        from_name: "A",
+        to_name: "B",
+        start_time: start,
+        end_time: end,
+        duration_min: minutes,
+        distance_km: 1,
+        geometry: [
+          [54.35, 18.64],
+          [54.36, 18.63],
+        ] as [number, number][],
+        ...extra,
+      };
+    }
+    function withTransit(
+      transit: Partial<(typeof COMPARISON.options)[number]>,
+    ) {
+      return {
+        ...COMPARISON,
+        options: COMPARISON.options.map((o) =>
+          o.mode === "transit" ? { ...o, is_estimate: false, ...transit } : o,
+        ),
+      };
+    }
+    const TRAM_LEGS = [
+      leg("WALK", null, "2026-11-14T07:00:00Z", "2026-11-14T07:04:00Z", {
+        to_name: "Dworzec Główny 01",
+      }),
+      leg("TRAM", "6", "2026-11-14T07:04:00Z", "2026-11-14T07:15:00Z", {
+        headsign: "Jelitkowo",
+        from_name: "Dworzec Główny 01",
+      }),
+      leg("WALK", null, "2026-11-14T07:15:00Z", "2026-11-14T07:25:00Z"),
+    ];
+
+    it("lists each leg for a short journey, with the departure time", async () => {
+      getComparison.mockResolvedValue(
+        withTransit({ duration_min: 25, legs: TRAM_LEGS }),
+      );
+
+      renderWithClient(<ComparisonPanel tripId={1} />);
+
+      const transit = await screen.findByRole("listitem", {
+        name: /public transport/i,
+      });
+      const journey = within(transit).getByRole("list", { name: /journey/i });
+      expect(within(journey).getAllByRole("listitem")).toHaveLength(3);
+      expect(journey).toHaveTextContent("Tram 6");
+      expect(journey).toHaveTextContent("4 min");
+      // Screen readers get the mode and direction as text, not just an icon/tooltip.
+      expect(within(journey).getAllByRole("listitem")[0]).toHaveTextContent(
+        /walk/i,
+      );
+      expect(journey).toHaveTextContent(/towards Jelitkowo/i);
+      expect(transit).toHaveTextContent(/leaves 08:04 from Dworzec Główny 01/i);
+      expect(within(transit).queryByText(/estimate/i)).toBeNull();
+      expect(transit).toHaveTextContent("25 min");
+      expect(transit).not.toHaveTextContent("~");
+    });
+
+    it("summarises long journeys instead of listing every leg", async () => {
+      const legs = [
+        leg("WALK", null, "2026-11-14T07:00:00Z", "2026-11-14T07:05:00Z", {
+          to_name: "Gdańsk Główny",
+        }),
+        leg("BUS", "130", "2026-11-14T07:05:00Z", "2026-11-14T07:15:00Z"),
+        leg("WALK", null, "2026-11-14T07:15:00Z", "2026-11-14T07:20:00Z"),
+        leg(
+          "LONG_DISTANCE",
+          "IC",
+          "2026-11-14T07:20:00Z",
+          "2026-11-14T10:30:00Z",
+        ),
+        leg("WALK", null, "2026-11-14T10:30:00Z", "2026-11-14T10:40:00Z"),
+      ];
+      getComparison.mockResolvedValue(
+        withTransit({ duration_min: 220, legs, cost_pln: null }),
+      );
+
+      renderWithClient(<ComparisonPanel tripId={1} />);
+
+      const transit = await screen.findByRole("listitem", {
+        name: /public transport/i,
+      });
+      expect(
+        within(transit).queryByRole("list", { name: /journey/i }),
+      ).toBeNull();
+      // Main ride = the longest one; changes = rides - 1.
+      expect(transit).toHaveTextContent(/train IC/i);
+      expect(transit).toHaveTextContent("1 change");
+      // The first *ride*'s departure (the walk to the stop starts earlier).
+      expect(transit).toHaveTextContent(/leaves 08:05 from/i);
+      expect(transit).toHaveTextContent("3 h 40 min");
+    });
+
+    it("says the price varies when it isn't a single ZTM Gdańsk ride", async () => {
+      getComparison.mockResolvedValue(
+        withTransit({ legs: TRAM_LEGS, cost_pln: null }),
+      );
+
+      renderWithClient(<ComparisonPanel tripId={1} />);
+
+      const transit = await screen.findByRole("listitem", {
+        name: /public transport/i,
+      });
+      const price = within(transit).getByText("Varies");
+      expect(price).toHaveAttribute(
+        "title",
+        expect.stringMatching(/operator/i),
+      );
+    });
+
+    it("credits Transitous with a link to its data sources", async () => {
+      getComparison.mockResolvedValue(withTransit({ legs: TRAM_LEGS }));
+
+      renderWithClient(<ComparisonPanel tripId={1} />);
+
+      const link = await screen.findByRole("link", { name: /transitous/i });
+      expect(link).toHaveAttribute("href", "https://transitous.org/sources/");
+      expect(screen.queryByText(/no live timetable/i)).toBeNull();
+    });
+
+    it("still explains the estimate when no journey was found", async () => {
+      getComparison.mockResolvedValue(COMPARISON); // transit is_estimate, no legs
+
+      renderWithClient(<ComparisonPanel tripId={1} />);
+
+      expect(
+        await screen.findByText(/no timetable journey/i),
+      ).toBeInTheDocument();
+    });
   });
 });

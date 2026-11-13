@@ -37,16 +37,36 @@ export interface Weather {
 
 export type Mode = "walk" | "bike" | "transit" | "car";
 
+/** One leg of a real public transport journey (Transitous). */
+export interface TransitLeg {
+  /** Transitous mode: WALK, BUS, TRAM, REGIONAL_RAIL, LONG_DISTANCE, ... */
+  mode: string;
+  line: string | null;
+  headsign: string | null;
+  agency: string | null;
+  from_name: string;
+  to_name: string;
+  /** ISO 8601 UTC, e.g. "2026-11-14T07:04:00Z". */
+  start_time: string;
+  end_time: string;
+  duration_min: number;
+  distance_km: number;
+  geometry: [number, number][];
+}
+
 export interface ModeOption {
   mode: Mode;
   duration_min: number;
   distance_km: number;
-  cost_pln: number;
+  /** null when unknown (public transport beyond a single ZTM Gdańsk ride). */
+  cost_pln: number | null;
   co2_g: number;
   /** True when numbers come from static factors (always for transit). */
   is_estimate: boolean;
   /** [[lat, lon], ...] for a Leaflet Polyline; null for estimates and transit. */
   geometry: [number, number][] | null;
+  /** Public transport only, when a real journey was found. */
+  legs?: TransitLeg[] | null;
 }
 
 export interface TripComparison {

@@ -7,6 +7,7 @@ import {
   formatDistance,
   formatDuration,
 } from "./format";
+import { Journey } from "./Journey";
 import { MODE_STYLES } from "./modes";
 import { useComparison, useRecommendation } from "./queries";
 
@@ -60,11 +61,12 @@ export function ComparisonPanel({ tripId }: ComparisonPanelProps) {
   }
 
   const { weather, options } = data;
-  // Transit is always an estimate (no live timetable); any *other* estimated
-  // mode means OSRM failed or timed out for it.
+  // Transit falls back to a distance estimate when no timetable journey was
+  // found; any *other* estimated mode means OSRM failed or timed out for it.
   const routingFellBack = options.some(
     (o) => o.is_estimate && o.mode !== "transit",
   );
+  const liveTransit = options.some((o) => o.mode === "transit" && o.legs);
 
   return (
     <div className="space-y-4">
@@ -95,10 +97,27 @@ export function ComparisonPanel({ tripId }: ComparisonPanelProps) {
             values are estimates from distance and average speed.
           </p>
         )}
-        <p>
-          Public transport is estimated from distance (no live timetable).
-          Costs: car fuel only, transit single ticket.
-        </p>
+        {liveTransit ? (
+          <p>
+            Public transport: timetable journey from{" "}
+            {/* Transitous usage policy: visible link to its data sources. */}
+            <a
+              href="https://transitous.org/sources/"
+              target="_blank"
+              rel="noreferrer"
+              className="underline"
+            >
+              Transitous
+            </a>
+            . Price shown only for a single ZTM Gdańsk ride (normal ticket).
+          </p>
+        ) : (
+          <p>
+            Public transport is estimated from distance (no timetable journey
+            found).
+          </p>
+        )}
+        <p>Car cost: fuel only.</p>
       </div>
     </div>
   );
@@ -200,13 +219,22 @@ function ModeCard({
         </div>
         <div>
           <dt className="text-slate-500">Cost</dt>
-          <dd>{formatCost(option.cost_pln)}</dd>
+          <dd
+            title={
+              option.cost_pln === null
+                ? "Price varies by operator and ticket type"
+                : undefined
+            }
+          >
+            {formatCost(option.cost_pln)}
+          </dd>
         </div>
         <div>
           <dt className="text-slate-500">CO₂</dt>
           <dd>{formatCo2(option.co2_g)}</dd>
         </div>
       </dl>
+      {option.legs && option.legs.length > 0 && <Journey legs={option.legs} />}
     </li>
   );
 }

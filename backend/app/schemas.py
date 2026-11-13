@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.clients.schemas import WeatherResult
+from app.clients.schemas import TransitLeg, WeatherResult
 
 
 class TripBase(BaseModel):
@@ -37,13 +37,17 @@ class ModeOption(BaseModel):
     mode: Literal["walk", "bike", "transit", "car"]
     duration_min: float
     distance_km: float
-    cost_pln: float
+    # None when unknown: public transport outside a single ZTM Gdańsk ride.
+    cost_pln: float | None
     co2_g: int
     # True when the numbers come from static factors instead of a live route
     # (always true for transit; true for other modes if OSRM failed or timed out).
     is_estimate: bool
-    # [[lat, lon], ...] for a Leaflet Polyline; None for estimates and transit.
+    # [[lat, lon], ...] for a Leaflet Polyline: live routes, and real transit journeys
+    # (all legs joined); None for estimates.
     geometry: list[list[float]] | None = None
+    # Public transport only, when a real journey was found (Transitous).
+    legs: list[TransitLeg] | None = None
 
 
 Mode = Literal["walk", "bike", "transit", "car"]

@@ -78,6 +78,25 @@ class TestRules:
         assert set(rec.unsuitable) == {"walk", "bike"}
         assert rec.unsuitable["bike"] == "Too wet for cycling."
 
+    def test_long_trips_read_in_hours_and_kilograms(self) -> None:
+        # Gdańsk -> Warsaw: minutes in the thousands and CO2 in tens of kg.
+        options = [
+            _opt("walk", 4424),
+            _opt("bike", 1088),
+            _opt("transit", 152, co2=11400),
+            _opt("car", 235, co2=57900),
+        ]
+
+        rec = rule_based_recommendation(options, DRY, "now")
+        text = " ".join(rec.reasons)
+
+        assert rec.recommended_mode == "transit"
+        assert "Walking would take 73 h 44 min." in text
+        assert "Cycling would take 18 h 8 min." in text
+        assert "about 2 h 32 min vs 3 h 55 min by car" in text
+        assert "Saves 46.5 kg CO₂" in text
+        assert recommendation_service._headline(options[2]) == "Take public transport: ~2 h 32 min"
+
 
 TRIP = Trip(
     id=1,
@@ -257,6 +276,47 @@ class TestRecommendTrip:
 
         assert elapsed < 0.3
         assert rec.weather is not None and rec.weather.is_forecast is False
+
+    @patch(f"{SVC}.openai_client.complete_json")
+    @patch(f"{SVC}.open_meteo.get_forecast_at", return_value=None)
+    @patch(f"{SVC}.get_shared_comparison")
+    def test_ai_prompt_omits_route_geometry(
+        self, compare: MagicMock, _f: MagicMock, llm: MagicMock, ai_key: None
+    ) -> None:
+        from app.clients.schemas import TransitLeg
+
+        line = [[54.35 + i / 10000, 18.64] for i in range(500)]
+        leg = TransitLeg(
+            mode="TRAM",
+            line="6",
+            headsign="Jelitkowo",
+            agency="ZTM",
+            from_name="A",
+            to_name="B",
+            start_time="2026-11-14T07:04:00Z",
+            end_time="2026-11-14T07:15:00Z",
+            duration_min=11,
+            distance_km=2.6,
+            geometry=line,
+        )
+        options = _options(39, 11, 16, 6)
+        options[2] = options[2].model_copy(update={"legs": [leg], "geometry": line})
+        compare.return_value = TripComparison(trip_id=1, weather=DRY, options=options)
+        llm.return_value = None
+
+        recommend_trip(TRIP)
+
+        user_prompt = llm.call_args.args[1]
+        assert "geometry" not in user_prompt
+        assert len(user_prompt) < 4000
+        # ...but the model still knows which lines the journey uses.
+        assert '"TRAM 6"' in user_prompt
+
+    def test_system_prompt_explains_unknown_price_and_rides(self) -> None:
+        prompt = recommendation_service.SYSTEM_PROMPT.lower()
+        assert "cost_pln" in prompt and "null" in prompt
+        assert "rides" in prompt
+        assert "wait" in prompt  # transit duration includes waiting for departure
 
 
 VALID_TRIP = {

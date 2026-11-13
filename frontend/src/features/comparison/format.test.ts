@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatClock,
+  formatDeparture,
   formatCo2,
   formatCost,
   formatDistance,
@@ -25,6 +27,7 @@ describe("formatDuration", () => {
 describe("formatCost", () => {
   it.each([
     [0, "Free"],
+    [null, "Varies"], // unknown: depends on operator / ticket
     [1.21, "1.21 zł"],
     [4.8, "4.80 zł"],
   ])("%s -> %s", (pln, expected) => {
@@ -66,5 +69,34 @@ describe("describeWeather", () => {
 
   it("falls back for unknown codes instead of crashing", () => {
     expect(describeWeather(1234).label).toBe("Unknown conditions");
+  });
+});
+
+describe("formatClock", () => {
+  it("shows Gdańsk local time for a UTC timestamp (winter and summer)", () => {
+    expect(formatClock("2026-11-14T07:04:00Z")).toBe("08:04");
+    expect(formatClock("2026-07-01T06:30:00Z")).toBe("08:30");
+  });
+});
+
+describe("formatDeparture", () => {
+  const now = new Date("2026-11-14T22:30:00Z"); // 23:30 in Gdańsk, Sat 14 Nov
+
+  it("shows just the time for a departure later today", () => {
+    expect(formatDeparture("2026-11-14T22:45:00Z", now)).toBe("23:45");
+  });
+
+  it("says tomorrow for an early-morning departure the next day", () => {
+    expect(formatDeparture("2026-11-15T03:30:00Z", now)).toBe("04:30 tomorrow");
+  });
+
+  it("names the day when it's further out", () => {
+    expect(formatDeparture("2026-11-16T07:00:00Z", now)).toBe("08:00 on Mon");
+  });
+
+  it("uses Gdańsk dates, not UTC dates", () => {
+    // 23:30 UTC on the 14th is already 00:30 on the 15th in Gdańsk.
+    const lateUtc = new Date("2026-11-14T23:30:00Z");
+    expect(formatDeparture("2026-11-15T07:00:00Z", lateUtc)).toBe("08:00");
   });
 });

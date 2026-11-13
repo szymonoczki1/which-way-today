@@ -20,3 +20,26 @@ class WeatherResult(BaseModel):
     precipitation_mm: float
     wind_speed_kmh: float
     weather_code: int
+
+
+class TransitLeg(BaseModel):
+    # Transitous/MOTIS mode: WALK, BUS, TRAM, REGIONAL_RAIL, LONG_DISTANCE, ...
+    mode: str
+    line: str | None  # e.g. "6", "168", "IC"
+    headsign: str | None  # direction shown on the vehicle
+    agency: str | None  # operator, e.g. "Zarząd Transportu Miejskiego w Gdańsku"
+    from_name: str
+    to_name: str
+    start_time: str  # ISO 8601 UTC, e.g. "2026-11-14T07:04:00Z"
+    end_time: str
+    duration_min: float
+    distance_km: float
+    geometry: list[list[float]]  # [[lat, lon], ...]
+
+
+class TransitJourney(BaseModel):
+    duration_min: float
+    transfers: int
+    start_time: str
+    end_time: str
+    legs: list[TransitLeg]

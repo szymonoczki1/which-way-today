@@ -24,7 +24,7 @@ export function useComparison(tripId: number | null) {
       }
     },
     enabled: tripId !== null,
-    // Each comparison costs 4 calls to free, rate-limited upstreams; switching
+    // Each comparison costs 5 calls to free, rate-limited upstreams; switching
     // back and forth between trips shouldn't repeat them.
     staleTime: 5 * 60 * 1000,
   });
