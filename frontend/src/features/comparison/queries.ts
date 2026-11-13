@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { ApiError, getComparison } from "../../lib/api";
+import { ApiError, getComparison, getRecommendation } from "../../lib/api";
 import { tripsQueryKey } from "../trips/queries";
 
 export const comparisonQueryKey = (tripId: number) => ["comparison", tripId] as const;
@@ -25,6 +25,19 @@ export function useComparison(tripId: number | null) {
     enabled: tripId !== null,
     // Each comparison costs 4 calls to free, rate-limited upstreams; switching
     // back and forth between trips shouldn't repeat them.
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export const recommendationQueryKey = (tripId: number) =>
+  ["recommendation", tripId] as const;
+
+export function useRecommendation(tripId: number | null) {
+  return useQuery({
+    queryKey: recommendationQueryKey(tripId ?? -1),
+    queryFn: ({ signal }) => getRecommendation(tripId!, signal),
+    enabled: tripId !== null,
+    // Same upstream cost as the comparison, plus an optional AI call.
     staleTime: 5 * 60 * 1000,
   });
 }

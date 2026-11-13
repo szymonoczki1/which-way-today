@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from "react";
 
 import { ComparisonPanel } from "./features/comparison/ComparisonPanel";
 import { useComparison } from "./features/comparison/queries";
+import { RecommendationCard } from "./features/comparison/RecommendationCard";
 import { BackendStatus } from "./features/health/BackendStatus";
 import { AddTripForm } from "./features/trips/AddTripForm";
 import { useTrips } from "./features/trips/queries";
@@ -64,6 +65,7 @@ function App() {
               Select a trip to see its route and compare ways to get there.
             </p>
           )}
+          {selectedTrip && <RecommendationCard tripId={selectedTrip.id} />}
           {selectedTrip && <ComparisonPanel tripId={selectedTrip.id} />}
         </section>
       </main>

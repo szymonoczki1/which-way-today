@@ -5,6 +5,7 @@ from sqlmodel.pool import StaticPool
 
 from app.db import get_session
 from app.main import app
+from app.services import comparison_service
 
 
 @pytest.fixture(name="session")
@@ -29,3 +30,11 @@ def client_fixture(session: Session):
     client = TestClient(app)
     yield client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def _clear_shared_comparisons():
+    # get_shared_comparison caches per trip; tests reuse ids and coordinates.
+    comparison_service._shared.clear()
+    yield
+    comparison_service._shared.clear()

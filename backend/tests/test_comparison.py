@@ -1,6 +1,8 @@
 import time
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.clients.schemas import RouteResult, WeatherResult
@@ -231,6 +233,52 @@ class TestCompareTrip:
         assert car.distance_km == 0.0
         assert car.co2_g == 0
         assert car.cost_pln == 0.0
+
+
+class TestSharedComparison:
+    @pytest.fixture(autouse=True)
+    def _clear(self) -> None:
+        comparison_service._shared.clear()
+
+    @patch(WEATHER, return_value=WEATHER_OK)
+    @patch(OSRM)
+    def test_concurrent_requests_share_one_computation(self, mock_route, *_: object) -> None:
+        # /comparison and /recommendation arrive together for the same trip view.
+        def slow(*a: object) -> RouteResult | None:
+            time.sleep(0.2)
+            return ROUTES[a[4]]  # type: ignore[index]
+
+        mock_route.side_effect = slow
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first, second = pool.map(comparison_service.get_shared_comparison, [TRIP, TRIP])
+
+        assert mock_route.call_count == 3  # one walk/bike/car set, not two
+        assert first == second
+
+    @patch(WEATHER, return_value=WEATHER_OK)
+    @patch(OSRM, side_effect=_fake_route)
+    def test_recomputes_after_the_ttl(
+        self, mock_route: MagicMock, _weather: MagicMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(comparison_service, "SHARED_TTL_S", 0.0)
+
+        comparison_service.get_shared_comparison(TRIP)
+        comparison_service.get_shared_comparison(TRIP)
+
+        assert mock_route.call_count == 6
+
+    @patch(WEATHER, return_value=WEATHER_OK)
+    @patch(OSRM, side_effect=_fake_route)
+    def test_reused_id_with_new_coordinates_is_not_served_from_cache(
+        self, mock_route, *_: object
+    ) -> None:
+        moved = TRIP.model_copy(update={"destination_lat": 54.5})
+
+        comparison_service.get_shared_comparison(TRIP)
+        comparison_service.get_shared_comparison(moved)
+
+        assert mock_route.call_count == 6
 
 
 VALID_TRIP = {

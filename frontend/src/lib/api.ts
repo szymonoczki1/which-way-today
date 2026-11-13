@@ -1,4 +1,10 @@
-import type { GeocodeResult, Trip, TripComparison, TripInput } from "./types";
+import type {
+  GeocodeResult,
+  Recommendation,
+  Trip,
+  TripComparison,
+  TripInput,
+} from "./types";
 
 const DEFAULT_API_URL = "http://localhost:8000";
 
@@ -101,3 +107,7 @@ export const geocode = (query: string) =>
 
 export const getComparison = (tripId: number, signal?: AbortSignal) =>
   request<TripComparison>(`/trips/${tripId}/comparison`, { signal });
+
+/** Always 200 for an existing trip: rule-based when the AI is off or fails. */
+export const getRecommendation = (tripId: number, signal?: AbortSignal) =>
+  request<Recommendation>(`/trips/${tripId}/recommendation`, { signal });

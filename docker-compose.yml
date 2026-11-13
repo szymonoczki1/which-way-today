@@ -4,6 +4,7 @@
 # Zero config. Optional overrides (shell env or a root .env file):
 #   BACKEND_PORT, FRONTEND_PORT  host ports (e.g. if 8000 is already taken)
 #   OPENAI_API_KEY               enables AI recommendations; rule-based without it
+#   OPENAI_MODEL                 OpenAI model for recommendations (default gpt-4o-mini)
 #
 # The frontend's API URL and the backend's CORS origins are derived from the two
 # ports, so they can't drift apart.
@@ -15,6 +16,7 @@ services:
       DATABASE_URL: sqlite:////data/whichway.db
       CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173},http://127.0.0.1:${FRONTEND_PORT:-5173}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:

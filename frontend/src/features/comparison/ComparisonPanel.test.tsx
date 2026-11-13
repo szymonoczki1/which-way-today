@@ -11,9 +11,11 @@ import { ComparisonPanel } from "./ComparisonPanel";
 vi.mock("../../lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../lib/api")>()),
   getComparison: vi.fn(),
+  getRecommendation: vi.fn(),
 }));
 
 const getComparison = vi.mocked(api.getComparison);
+const getRecommendation = vi.mocked(api.getRecommendation);
 
 const LINE: [number, number][] = [
   [54.35, 18.64],
@@ -236,5 +238,33 @@ describe("ComparisonPanel", () => {
     expect(await screen.findByText(/route service was unavailable/i)).toHaveTextContent(
       /distance and average speed/i,
     );
+  });
+
+  it("marks the recommended mode once the recommendation arrives", async () => {
+    getComparison.mockResolvedValue(COMPARISON);
+    getRecommendation.mockResolvedValue({
+      trip_id: 1,
+      source: "rules",
+      recommended_mode: "bike",
+      headline: "Take the bike: 11 min",
+      reasons: ["x"],
+      weather: null,
+    });
+
+    renderWithClient(<ComparisonPanel tripId={1} />);
+
+    await screen.findAllByRole("listitem");
+    expect(await within(card(/bike/i)).findByText(/recommended/i)).toBeInTheDocument();
+    expect(within(card(/car/i)).queryByText(/recommended/i)).toBeNull();
+  });
+
+  it("shows the cards even if the recommendation is still loading", async () => {
+    getComparison.mockResolvedValue(COMPARISON);
+    getRecommendation.mockReturnValue(new Promise(() => {}));
+
+    renderWithClient(<ComparisonPanel tripId={1} />);
+
+    expect(await screen.findAllByRole("listitem")).toHaveLength(4);
+    expect(screen.queryByText(/recommended/i)).toBeNull();
   });
 });

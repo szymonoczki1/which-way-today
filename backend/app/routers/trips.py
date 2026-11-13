@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.models import Trip
 from app.repositories.trip_repository import TripRepository, get_trip_repository
-from app.schemas import TripComparison, TripCreate, TripRead, TripUpdate
-from app.services.comparison_service import compare_trip
+from app.schemas import Recommendation, TripComparison, TripCreate, TripRead, TripUpdate
+from app.services.comparison_service import get_shared_comparison
+from app.services.recommendation_service import recommend_trip
 from app.services.trip_service import TripNotFoundError, TripService
 
 router = APIRouter(prefix="/trips", tags=["trips"])
@@ -59,4 +60,17 @@ def get_trip_comparison(
         trip = service.get_trip(trip_id)
     except TripNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return compare_trip(trip)
+    return get_shared_comparison(trip)
+
+
+@router.get("/{trip_id}/recommendation", response_model=Recommendation)
+def get_trip_recommendation(
+    trip_id: int, service: TripService = Depends(get_trip_service)
+) -> Recommendation:
+    # Separate from /comparison so a slow AI call never delays the comparison.
+    # Always 200 for an existing trip: no key / AI failure -> rule-based answer.
+    try:
+        trip = service.get_trip(trip_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return recommend_trip(trip)

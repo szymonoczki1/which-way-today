@@ -8,7 +8,7 @@ import {
   formatDuration,
 } from "./format";
 import { MODE_STYLES } from "./modes";
-import { useComparison } from "./queries";
+import { useComparison, useRecommendation } from "./queries";
 
 interface ComparisonPanelProps {
   tripId: number;
@@ -16,6 +16,8 @@ interface ComparisonPanelProps {
 
 export function ComparisonPanel({ tripId }: ComparisonPanelProps) {
   const comparison = useComparison(tripId);
+  // Same query as RecommendationCard: shared, one request. Cards don't wait for it.
+  const recommended = useRecommendation(tripId).data?.recommended_mode;
 
   if (comparison.isPending) {
     return (
@@ -72,7 +74,11 @@ export function ComparisonPanel({ tripId }: ComparisonPanelProps) {
       <WeatherStrip weather={weather} />
       <ul className="grid gap-3 sm:grid-cols-2">
         {options.map((option) => (
-          <ModeCard key={option.mode} option={option} />
+          <ModeCard
+            key={option.mode}
+            option={option}
+            recommended={option.mode === recommended}
+          />
         ))}
       </ul>
       <div className="space-y-1 text-xs text-slate-500">
@@ -117,7 +123,13 @@ function WeatherStrip({ weather }: { weather: Weather | null }) {
   );
 }
 
-function ModeCard({ option }: { option: ModeOption }) {
+function ModeCard({
+  option,
+  recommended,
+}: {
+  option: ModeOption;
+  recommended: boolean;
+}) {
   const style = MODE_STYLES[option.mode];
   const approx = option.is_estimate ? "~" : "";
   const headingId = `mode-${option.mode}`;
@@ -147,6 +159,11 @@ function ModeCard({ option }: { option: ModeOption }) {
             </svg>
           )}
         </h3>
+        {recommended && (
+          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+            Recommended
+          </span>
+        )}
         {option.is_estimate && (
           <span
             title="Calculated from distance and average speed, not a live route"

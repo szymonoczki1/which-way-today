@@ -7,6 +7,8 @@ deadline falls back to the static factors below, so the endpoint always answers.
 
 import logging
 import math
+import threading
+import time
 from concurrent.futures import Future, ThreadPoolExecutor, wait
 
 from app.clients import open_meteo, osrm
@@ -45,6 +47,41 @@ TRANSIT_CO2_G_PER_KM = 60.0  # per passenger-km, mixed tram/bus average
 
 CAR_COST_PLN_PER_KM = 0.45  # fuel only: ~7 L/100 km x ~6.4 PLN/L
 CAR_CO2_G_PER_KM = 170.0  # average real-world passenger car, single occupant
+
+
+# /comparison and /recommendation are requested together for the same trip view.
+# Sharing one computation keeps their numbers identical (no badge on a card the
+# recommendation's own numbers wouldn't pick) and halves upstream calls. Keyed by
+# id *and* coordinates, since SQLite can reuse a deleted trip's id.
+SHARED_TTL_S = 60.0
+_shared: dict[tuple[int, float, float, float, float], tuple[float, Future[TripComparison]]] = {}
+_shared_lock = threading.Lock()
+
+
+def get_shared_comparison(trip: Trip) -> TripComparison:
+    """compare_trip, but concurrent/recent calls for the same trip share one result."""
+    assert trip.id is not None, "only saved trips can be compared"
+    key = (trip.id, trip.origin_lat, trip.origin_lon, trip.destination_lat, trip.destination_lon)
+    now = time.monotonic()
+    with _shared_lock:
+        for stale in [k for k, (at, _) in _shared.items() if now - at > SHARED_TTL_S]:
+            del _shared[stale]
+        entry = _shared.get(key)
+        if entry is not None:
+            future, owner = entry[1], False
+        else:
+            future, owner = Future(), True
+            _shared[key] = (now, future)
+
+    if owner:
+        try:
+            future.set_result(compare_trip(trip))
+        except BaseException as exc:
+            future.set_exception(exc)
+            with _shared_lock:
+                _shared.pop(key, None)
+    # Waiters block at most as long as the owner's compare_trip (its own deadline).
+    return future.result()
 
 
 def compare_trip(trip: Trip, deadline_s: float = DEADLINE_S) -> TripComparison:

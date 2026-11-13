@@ -46,6 +46,25 @@ class ModeOption(BaseModel):
     geometry: list[list[float]] | None = None
 
 
+Mode = Literal["walk", "bike", "transit", "car"]
+
+
+class RecommendationWeather(WeatherResult):
+    # Local forecast hour ("2026-11-14T08:00"), or None for current conditions.
+    time: str | None
+    is_forecast: bool
+
+
+class Recommendation(BaseModel):
+    trip_id: int
+    # "ai" when the LLM answered validly, "rules" for the deterministic fallback.
+    source: Literal["ai", "rules"]
+    recommended_mode: Mode
+    headline: str
+    reasons: list[str]
+    weather: RecommendationWeather | None
+
+
 class TripComparison(BaseModel):
     trip_id: int
     # None if Open-Meteo failed or timed out; the comparison is still returned.

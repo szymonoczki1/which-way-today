@@ -202,4 +202,21 @@ describe("TripList", () => {
     expect(await screen.findByText(/loading trips/i)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
   });
+
+  it("drops the deleted trip's cached comparison and recommendation (ids get reused)", async () => {
+    listTrips.mockResolvedValueOnce([HOME_UNI]);
+    listTrips.mockResolvedValueOnce([]);
+    deleteTrip.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+
+    const { client } = renderWithClient(
+      <TripList selectedTripId={null} onSelect={vi.fn()} />,
+    );
+    client.setQueryData(["comparison", 1], { trip_id: 1 });
+    client.setQueryData(["recommendation", 1], { trip_id: 1 });
+    await user.click(await screen.findByRole("button", { name: "Delete Home -> Uni" }));
+
+    await waitFor(() => expect(client.getQueryData(["recommendation", 1])).toBeUndefined());
+    expect(client.getQueryData(["comparison", 1])).toBeUndefined();
+  });
 });

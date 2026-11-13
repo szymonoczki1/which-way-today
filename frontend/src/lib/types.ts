@@ -55,3 +55,19 @@ export interface TripComparison {
   weather: Weather | null;
   options: ModeOption[];
 }
+
+export interface RecommendationWeather extends Weather {
+  /** Local forecast hour, e.g. "2026-11-14T08:00"; null for current conditions. */
+  time: string | null;
+  is_forecast: boolean;
+}
+
+export interface Recommendation {
+  trip_id: number;
+  /** "ai" when the LLM answered validly; "rules" for the deterministic fallback. */
+  source: "ai" | "rules";
+  recommended_mode: Mode;
+  headline: string;
+  reasons: string[];
+  weather: RecommendationWeather | null;
+}
