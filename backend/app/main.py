@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.db import init_db
+from app.routers import trips
 
 
 @asynccontextmanager
@@ -29,6 +30,8 @@ def create_app() -> FastAPI:
     @app.get("/health", tags=["health"])
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    app.include_router(trips.router)
 
     return app
 

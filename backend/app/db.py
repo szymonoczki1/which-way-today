@@ -2,6 +2,7 @@ from collections.abc import Iterator
 
 from sqlmodel import Session, SQLModel, create_engine
 
+from app import models  # noqa: F401 -- registers Trip on SQLModel.metadata before create_all
 from app.config import get_settings
 
 settings = get_settings()

@@ -1,0 +1,48 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from app.models import Trip
+from app.repositories.trip_repository import TripRepository, get_trip_repository
+from app.schemas import TripCreate, TripRead, TripUpdate
+from app.services.trip_service import TripNotFoundError, TripService
+
+router = APIRouter(prefix="/trips", tags=["trips"])
+
+
+def get_trip_service(repository: TripRepository = Depends(get_trip_repository)) -> TripService:
+    return TripService(repository)
+
+
+@router.get("", response_model=list[TripRead])
+def list_trips(service: TripService = Depends(get_trip_service)) -> list[Trip]:
+    return service.list_trips()
+
+
+@router.post("", response_model=TripRead, status_code=status.HTTP_201_CREATED)
+def create_trip(data: TripCreate, service: TripService = Depends(get_trip_service)) -> Trip:
+    return service.create_trip(data)
+
+
+@router.get("/{trip_id}", response_model=TripRead)
+def get_trip(trip_id: int, service: TripService = Depends(get_trip_service)) -> Trip:
+    try:
+        return service.get_trip(trip_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.put("/{trip_id}", response_model=TripRead)
+def update_trip(
+    trip_id: int, data: TripUpdate, service: TripService = Depends(get_trip_service)
+) -> Trip:
+    try:
+        return service.update_trip(trip_id, data)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.delete("/{trip_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_trip(trip_id: int, service: TripService = Depends(get_trip_service)) -> None:
+    try:
+        service.delete_trip(trip_id)
+    except TripNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
