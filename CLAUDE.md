@@ -6,9 +6,10 @@ Recruitment-task MVP for the Xelerit Winter Internship. Full-stack, transport-th
 
 Users save trips (name, origin, destination, optional usual departure time). For a saved
 trip, the app compares walk / bike / public transport / car by time, cost, and CO2, then
-gives a weather-aware recommendation (e.g. "rain + wind at 8:00 → take the tram, bike
-tomorrow"). Logging a trip with a green mode earns eco-points. An AI prompt (optional,
-keyless-fallback) turns the comparison + weather into a short structured recommendation.
+gives a weather-aware recommendation using the forecast for the departure time (e.g. rain
+at 08:00 → take public transport). Deterministic rules decide which modes are suitable; an
+optional AI model (OPENAI_API_KEY) picks among those and explains why, with the rules as
+the keyless fallback. (Eco-points were in the original plan and were dropped.)
 
 ## Architecture
 
@@ -38,7 +39,9 @@ Backend (run from `backend/`):
 Frontend (run from `frontend/`):
 - `npm run dev` — Vite dev server on :5173
 - `npm run build` — production build
-- `npm run lint` — ESLint
+- `npm run lint` — oxlint (from the Vite template)
+- `npm test` — Vitest
+- `npm run format` / `npm run format:check` — prettier (pinned devDependency)
 
 Docker (run from repo root):
 - `docker compose up --build` — backend on :8000, frontend on :5173

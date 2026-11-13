@@ -42,7 +42,7 @@ CAR_SPEED_KMH = 35.0  # urban average incl. lights/junctions, no live traffic
 # car route distance (transit follows roads/tracks roughly like a car does).
 TRANSIT_SPEED_KMH = 20.0  # average in-vehicle speed for urban tram/bus
 TRANSIT_OVERHEAD_MIN = 8.0  # walking to/from stops + average wait
-TRANSIT_TICKET_PLN = 4.80  # assumed flat single fare; verify against current ZTM Gdansk tariff
+TRANSIT_TICKET_PLN = 4.80  # ZTM Gdansk normal (full-price) single ticket; confirmed 2026-11
 TRANSIT_CO2_G_PER_KM = 60.0  # per passenger-km, mixed tram/bus average
 
 CAR_COST_PLN_PER_KM = 0.45  # fuel only: ~7 L/100 km x ~6.4 PLN/L
