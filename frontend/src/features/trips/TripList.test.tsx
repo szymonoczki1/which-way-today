@@ -149,7 +149,9 @@ describe("TripList", () => {
       await screen.findByRole("button", { name: "Delete Home -> Gym" }),
     );
 
-    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(1));
+    await waitFor(() =>
+      expect(screen.getAllByRole("listitem")).toHaveLength(1),
+    );
     expect(onSelect).not.toHaveBeenCalled();
   });
 
@@ -157,7 +159,9 @@ describe("TripList", () => {
     let finishDelete: () => void = () => {};
     listTrips.mockResolvedValueOnce([HOME_UNI, HOME_GYM]);
     listTrips.mockResolvedValueOnce([HOME_GYM]);
-    deleteTrip.mockReturnValue(new Promise<void>((resolve) => (finishDelete = resolve)));
+    deleteTrip.mockReturnValue(
+      new Promise<void>((resolve) => (finishDelete = resolve)),
+    );
     const onSelect = vi.fn();
     const user = userEvent.setup();
 
@@ -184,15 +188,21 @@ describe("TripList", () => {
       await screen.findByRole("button", { name: "Delete Home -> Uni" }),
     );
 
-    expect(screen.getByRole("button", { name: "Delete Home -> Uni" })).toHaveTextContent(
-      /deleting/i,
-    );
-    expect(screen.getByRole("button", { name: "Delete Home -> Gym" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Delete Home -> Uni" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Delete Home -> Uni" }),
+    ).toHaveTextContent(/deleting/i);
+    expect(
+      screen.getByRole("button", { name: "Delete Home -> Gym" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Delete Home -> Uni" }),
+    ).toBeDisabled();
   });
 
   it("shows the loading state again while retrying", async () => {
-    listTrips.mockRejectedValueOnce(new ApiError(0, "Could not reach the server"));
+    listTrips.mockRejectedValueOnce(
+      new ApiError(0, "Could not reach the server"),
+    );
     listTrips.mockReturnValueOnce(new Promise(() => {}));
     const user = userEvent.setup();
 
@@ -214,9 +224,13 @@ describe("TripList", () => {
     );
     client.setQueryData(["comparison", 1], { trip_id: 1 });
     client.setQueryData(["recommendation", 1], { trip_id: 1 });
-    await user.click(await screen.findByRole("button", { name: "Delete Home -> Uni" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Delete Home -> Uni" }),
+    );
 
-    await waitFor(() => expect(client.getQueryData(["recommendation", 1])).toBeUndefined());
+    await waitFor(() =>
+      expect(client.getQueryData(["recommendation", 1])).toBeUndefined(),
+    );
     expect(client.getQueryData(["comparison", 1])).toBeUndefined();
   });
 
@@ -224,7 +238,8 @@ describe("TripList", () => {
     listTrips.mockResolvedValue([
       makeTrip({
         origin_address: "A very long origin address, Gdańsk, Pomorskie, Polska",
-        destination_address: "An even longer destination address, Gdańsk, Polska",
+        destination_address:
+          "An even longer destination address, Gdańsk, Polska",
       }),
     ]);
 
@@ -232,10 +247,14 @@ describe("TripList", () => {
 
     const item = (await screen.findAllByRole("listitem"))[0];
     // Its own element, not the tail of a line that CSS may cut off with "…".
-    expect(within(item).getByText("08:00", { exact: true })).toBeInTheDocument();
+    expect(
+      within(item).getByText("08:00", { exact: true }),
+    ).toBeInTheDocument();
     // The full route is still available on hover.
     expect(
-      within(item).getByTitle(/A very long origin address.*An even longer destination/),
+      within(item).getByTitle(
+        /A very long origin address.*An even longer destination/,
+      ),
     ).toBeInTheDocument();
   });
 });

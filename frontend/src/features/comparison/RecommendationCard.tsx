@@ -21,7 +21,10 @@ export function RecommendationCard({ tripId }: RecommendationCardProps) {
   if (!data) {
     // Non-blocking: the comparison below is still useful on its own.
     return (
-      <div role="alert" className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+      <div
+        role="alert"
+        className="rounded-md bg-amber-50 p-3 text-sm text-amber-800"
+      >
         <p>Couldn't get a recommendation: {recommendation.error?.message}</p>
         <button
           type="button"
@@ -60,7 +63,9 @@ export function RecommendationCard({ tripId }: RecommendationCardProps) {
           <li key={i}>{reason}</li>
         ))}
       </ul>
-      <p className="mt-2 text-xs text-emerald-700">{weatherNote(data.weather)}</p>
+      <p className="mt-2 text-xs text-emerald-700">
+        {weatherNote(data.weather)}
+      </p>
     </section>
   );
 }

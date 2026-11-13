@@ -8,7 +8,10 @@ import {
   listTrips,
 } from "../../lib/api";
 import type { GeocodeResult } from "../../lib/types";
-import { comparisonQueryKey, recommendationQueryKey } from "../comparison/queries";
+import {
+  comparisonQueryKey,
+  recommendationQueryKey,
+} from "../comparison/queries";
 
 export const tripsQueryKey = ["trips"] as const;
 

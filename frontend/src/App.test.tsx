@@ -21,10 +21,48 @@ const COMPARISON: TripComparison = {
   trip_id: 2,
   weather: null,
   options: [
-    { mode: "walk", duration_min: 35, distance_km: 2.7, cost_pln: 0, co2_g: 0, is_estimate: false, geometry: [[54.3, 18.6], [54.4, 18.7]] },
-    { mode: "bike", duration_min: 11, distance_km: 2.7, cost_pln: 0, co2_g: 0, is_estimate: true, geometry: null },
-    { mode: "transit", duration_min: 16, distance_km: 2.7, cost_pln: 4.8, co2_g: 161, is_estimate: true, geometry: null },
-    { mode: "car", duration_min: 5, distance_km: 2.7, cost_pln: 1.21, co2_g: 456, is_estimate: false, geometry: [[54.3, 18.6], [54.4, 18.7]] },
+    {
+      mode: "walk",
+      duration_min: 35,
+      distance_km: 2.7,
+      cost_pln: 0,
+      co2_g: 0,
+      is_estimate: false,
+      geometry: [
+        [54.3, 18.6],
+        [54.4, 18.7],
+      ],
+    },
+    {
+      mode: "bike",
+      duration_min: 11,
+      distance_km: 2.7,
+      cost_pln: 0,
+      co2_g: 0,
+      is_estimate: true,
+      geometry: null,
+    },
+    {
+      mode: "transit",
+      duration_min: 16,
+      distance_km: 2.7,
+      cost_pln: 4.8,
+      co2_g: 161,
+      is_estimate: true,
+      geometry: null,
+    },
+    {
+      mode: "car",
+      duration_min: 5,
+      distance_km: 2.7,
+      cost_pln: 1.21,
+      co2_g: 456,
+      is_estimate: false,
+      geometry: [
+        [54.3, 18.6],
+        [54.4, 18.7],
+      ],
+    },
   ],
 };
 
@@ -104,7 +142,8 @@ describe("App shell", () => {
         if (url.pathname === "/health") return Response.json({ status: "ok" });
         if (url.pathname === "/geocode")
           return Response.json({ lat: 54.35, lon: 18.64, display_name: "x" });
-        if (url.pathname === "/trips" && method === "GET") return Response.json(trips);
+        if (url.pathname === "/trips" && method === "GET")
+          return Response.json(trips);
         if (url.pathname === "/trips" && method === "POST") {
           const trip = { id: 5, ...JSON.parse(String(init?.body)) } as Trip;
           trips = [trip];
@@ -127,7 +166,9 @@ describe("App shell", () => {
 
     expect(await screen.findByText("Map of Home -> Pool")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Delete Home -> Pool" }));
+    await user.click(
+      screen.getByRole("button", { name: "Delete Home -> Pool" }),
+    );
 
     expect(await screen.findByText(/select a trip/i)).toBeInTheDocument();
     expect(screen.queryByText("Map of Home -> Pool")).toBeNull();
@@ -138,14 +179,20 @@ describe("App shell", () => {
     const user = userEvent.setup();
 
     renderWithClient(<App />);
-    await user.click(await screen.findByRole("button", { name: "Home -> Gym" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Home -> Gym" }),
+    );
 
-    expect(await screen.findByRole("listitem", { name: /car/i })).toHaveTextContent("1.21 zł");
+    expect(
+      await screen.findByRole("listitem", { name: /car/i }),
+    ).toHaveTextContent("1.21 zł");
     expect(await screen.findByText("Route lines: 2")).toBeInTheDocument();
     // App (for the map) and ComparisonPanel share one query: exactly one request.
     const comparisonCalls = vi
       .mocked(fetch)
-      .mock.calls.filter(([url]) => /\/trips\/2\/comparison$/.test(String(url)));
+      .mock.calls.filter(([url]) =>
+        /\/trips\/2\/comparison$/.test(String(url)),
+      );
     expect(comparisonCalls).toHaveLength(1);
   });
 
@@ -162,7 +209,8 @@ describe("App shell", () => {
         if (url.pathname === "/health") return Response.json({ status: "ok" });
         if (url.pathname === "/geocode")
           return Response.json({ lat: 54.35, lon: 18.64, display_name: "x" });
-        if (url.pathname === "/trips" && method === "GET") return Response.json(trips);
+        if (url.pathname === "/trips" && method === "GET")
+          return Response.json(trips);
         if (url.pathname === "/trips" && method === "POST") {
           const trip = { id: 5, ...JSON.parse(String(init?.body)) } as Trip;
           trips = [trip];
@@ -207,7 +255,10 @@ describe("App shell", () => {
     function setScreen(narrow: boolean) {
       vi.stubGlobal(
         "matchMedia",
-        vi.fn((query: string) => ({ matches: narrow, media: query }) as MediaQueryList),
+        vi.fn(
+          (query: string) =>
+            ({ matches: narrow, media: query }) as MediaQueryList,
+        ),
       );
       // jsdom doesn't implement scrollIntoView.
       const scroll = vi.fn();
@@ -226,7 +277,9 @@ describe("App shell", () => {
       const user = userEvent.setup();
 
       renderWithClient(<App />);
-      await user.click(await screen.findByRole("button", { name: "Home -> Gym" }));
+      await user.click(
+        await screen.findByRole("button", { name: "Home -> Gym" }),
+      );
 
       await vi.waitFor(() => expect(scroll).toHaveBeenCalled());
       const target = scroll.mock.contexts[0] as HTMLElement;
@@ -265,7 +318,9 @@ describe("App shell", () => {
       const user = userEvent.setup();
 
       renderWithClient(<App />);
-      await user.click(await screen.findByRole("button", { name: "Home -> Gym" }));
+      await user.click(
+        await screen.findByRole("button", { name: "Home -> Gym" }),
+      );
       await screen.findByText("Map of Home -> Gym");
 
       expect(scroll).not.toHaveBeenCalled();

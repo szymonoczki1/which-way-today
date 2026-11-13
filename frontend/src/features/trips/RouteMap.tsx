@@ -34,7 +34,11 @@ export default function RouteMap({ trip, routes = [] }: RouteMapProps) {
   );
   // Fit to the routes too: a detour (river, one-way loop) can leave the
   // start/destination box and would otherwise be clipped.
-  const fitPoints: LatLngTuple[] = [origin, destination, ...lines.flatMap((l) => l.geometry)];
+  const fitPoints: LatLngTuple[] = [
+    origin,
+    destination,
+    ...lines.flatMap((l) => l.geometry),
+  ];
 
   return (
     <section

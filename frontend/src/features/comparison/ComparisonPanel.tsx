@@ -30,10 +30,14 @@ export function ComparisonPanel({ tripId }: ComparisonPanelProps) {
   const data = comparison.data;
   if (!data) {
     // Error with nothing cached to fall back on.
-    const gone = comparison.error instanceof ApiError && comparison.error.status === 404;
+    const gone =
+      comparison.error instanceof ApiError && comparison.error.status === 404;
     if (gone) {
       return (
-        <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+        <p
+          role="alert"
+          className="rounded-md bg-red-50 p-3 text-sm text-red-700"
+        >
           This trip no longer exists.
         </p>
       );
@@ -66,9 +70,12 @@ export function ComparisonPanel({ tripId }: ComparisonPanelProps) {
     <div className="space-y-4">
       {comparison.isError && (
         // A background refresh failed; keep showing the last good result.
-        <p role="alert" className="rounded-md bg-amber-50 p-2 text-xs text-amber-800">
-          Couldn't refresh the comparison ({comparison.error.message}). Showing the
-          last result.
+        <p
+          role="alert"
+          className="rounded-md bg-amber-50 p-2 text-xs text-amber-800"
+        >
+          Couldn't refresh the comparison ({comparison.error.message}). Showing
+          the last result.
         </p>
       )}
       <WeatherStrip weather={weather} />
@@ -146,7 +153,12 @@ function ModeCard({
           <span aria-hidden="true">{style.icon}</span> {style.label}
           {option.geometry && (
             // Legend for this mode's map line: same colour and dash pattern.
-            <svg aria-hidden="true" width="28" height="8" className="ml-2 inline-block align-middle">
+            <svg
+              aria-hidden="true"
+              width="28"
+              height="8"
+              className="ml-2 inline-block align-middle"
+            >
               <line
                 x1="2"
                 y1="4"

@@ -108,7 +108,9 @@ describe("ComparisonPanel", () => {
     renderWithClient(<ComparisonPanel tripId={1} />);
 
     await screen.findAllByRole("listitem");
-    expect(within(card(/public transport/i)).getByText(/estimate/i)).toBeInTheDocument();
+    expect(
+      within(card(/public transport/i)).getByText(/estimate/i),
+    ).toBeInTheDocument();
     expect(card(/public transport/i)).toHaveTextContent("~16 min");
     expect(within(card(/walk/i)).queryByText(/estimate/i)).toBeNull();
     expect(card(/walk/i)).not.toHaveTextContent("~");
@@ -127,9 +129,7 @@ describe("ComparisonPanel", () => {
     renderWithClient(<ComparisonPanel tripId={1} />);
 
     await screen.findAllByRole("listitem");
-    expect(
-      screen.getByText(/route service.*unavailable/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/route service.*unavailable/i)).toBeInTheDocument();
   });
 
   it("shows current weather", async () => {
@@ -183,7 +183,9 @@ describe("ComparisonPanel", () => {
   });
 
   it("shows the loading state again while retrying", async () => {
-    getComparison.mockRejectedValueOnce(new ApiError(0, "Could not reach the server"));
+    getComparison.mockRejectedValueOnce(
+      new ApiError(0, "Could not reach the server"),
+    );
     getComparison.mockReturnValueOnce(new Promise(() => {}));
     const user = userEvent.setup();
 
@@ -195,13 +197,17 @@ describe("ComparisonPanel", () => {
 
   it("keeps showing the last comparison if a background refresh fails", async () => {
     getComparison.mockResolvedValueOnce(COMPARISON);
-    getComparison.mockRejectedValueOnce(new ApiError(0, "Could not reach the server"));
+    getComparison.mockRejectedValueOnce(
+      new ApiError(0, "Could not reach the server"),
+    );
 
     const { client } = renderWithClient(<ComparisonPanel tripId={1} />);
     await screen.findByText("1.21 zł");
     await client.refetchQueries({ queryKey: ["comparison", 1] });
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/couldn't refresh/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /couldn't refresh/i,
+    );
     expect(screen.getByText("1.21 zł")).toBeInTheDocument();
   });
 
@@ -211,7 +217,9 @@ describe("ComparisonPanel", () => {
     const { client } = renderWithClient(<ComparisonPanel tripId={1} />);
     const invalidate = vi.spyOn(client, "invalidateQueries");
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/no longer exists/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /no longer exists/i,
+    );
     expect(screen.queryByRole("button", { name: /try again/i })).toBeNull();
     await vi.waitFor(() =>
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["trips"] }),
@@ -230,14 +238,18 @@ describe("ComparisonPanel", () => {
   it("describes fallback values as distance-based estimates", async () => {
     getComparison.mockResolvedValue({
       ...COMPARISON,
-      options: COMPARISON.options.map((o) => ({ ...o, is_estimate: true, geometry: null })),
+      options: COMPARISON.options.map((o) => ({
+        ...o,
+        is_estimate: true,
+        geometry: null,
+      })),
     });
 
     renderWithClient(<ComparisonPanel tripId={1} />);
 
-    expect(await screen.findByText(/route service was unavailable/i)).toHaveTextContent(
-      /distance and average speed/i,
-    );
+    expect(
+      await screen.findByText(/route service was unavailable/i),
+    ).toHaveTextContent(/distance and average speed/i);
   });
 
   it("marks the recommended mode once the recommendation arrives", async () => {
@@ -254,7 +266,9 @@ describe("ComparisonPanel", () => {
     renderWithClient(<ComparisonPanel tripId={1} />);
 
     await screen.findAllByRole("listitem");
-    expect(await within(card(/bike/i)).findByText(/recommended/i)).toBeInTheDocument();
+    expect(
+      await within(card(/bike/i)).findByText(/recommended/i),
+    ).toBeInTheDocument();
     expect(within(card(/car/i)).queryByText(/recommended/i)).toBeNull();
   });
 
@@ -273,7 +287,9 @@ describe("ComparisonPanel", () => {
 
     renderWithClient(<ComparisonPanel tripId={1} />);
 
-    const weather = await screen.findByRole("group", { name: /current weather/i });
+    const weather = await screen.findByRole("group", {
+      name: /current weather/i,
+    });
     expect(weather).toHaveTextContent(/^current weather/i);
   });
 });

@@ -40,7 +40,9 @@ describe("RecommendationCard", () => {
 
     renderWithClient(<RecommendationCard tripId={1} />);
 
-    expect(screen.getByText(/working out the best option/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/working out the best option/i),
+    ).toBeInTheDocument();
   });
 
   it("shows the headline, reasons and a rule-based label", async () => {
@@ -85,14 +87,20 @@ describe("RecommendationCard", () => {
   });
 
   it("shows an error with retry", async () => {
-    getRecommendation.mockRejectedValueOnce(new ApiError(0, "Could not reach the server"));
+    getRecommendation.mockRejectedValueOnce(
+      new ApiError(0, "Could not reach the server"),
+    );
     getRecommendation.mockResolvedValueOnce(RULES);
     const user = userEvent.setup();
 
     renderWithClient(<RecommendationCard tripId={1} />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/recommendation/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /recommendation/i,
+    );
     await user.click(screen.getByRole("button", { name: /try again/i }));
-    expect(await screen.findByText("Take public transport: ~16 min")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Take public transport: ~16 min"),
+    ).toBeInTheDocument();
   });
 });

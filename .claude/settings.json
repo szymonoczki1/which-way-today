@@ -17,11 +17,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; case \"$f\" in *backend/*.py) ruff format \"$f\" && ruff check --fix \"$f\";; esac; } 2>/dev/null || true"
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; r=\"${CLAUDE_PROJECT_DIR:-.}/backend/.venv/bin/ruff\"; case \"$f\" in *backend/*.py) [ -x \"$r\" ] && \"$r\" format \"$f\" && \"$r\" check --fix --unfixable F401 \"$f\";; esac; } >/dev/null 2>&1 || true"
           },
           {
             "type": "command",
-            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; case \"$f\" in *frontend/*.ts|*frontend/*.tsx|*frontend/*.js|*frontend/*.jsx|*frontend/*.css) npx --no-install prettier --write \"$f\" 2>/dev/null || npx prettier --write \"$f\";; esac; } 2>/dev/null || true"
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; p=\"${CLAUDE_PROJECT_DIR:-.}/frontend/node_modules/.bin/prettier\"; case \"$f\" in *frontend/*.ts|*frontend/*.tsx|*frontend/*.js|*frontend/*.jsx|*frontend/*.css|*frontend/*.json) [ -x \"$p\" ] && (cd \"${CLAUDE_PROJECT_DIR:-.}/frontend\" && \"$p\" --write --ignore-unknown \"$f\");; esac; } >/dev/null 2>&1 || true"
           }
         ]
       }

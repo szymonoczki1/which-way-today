@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, getComparison, getRecommendation } from "../../lib/api";
 import { tripsQueryKey } from "../trips/queries";
 
-export const comparisonQueryKey = (tripId: number) => ["comparison", tripId] as const;
+export const comparisonQueryKey = (tripId: number) =>
+  ["comparison", tripId] as const;
 
 export function useComparison(tripId: number | null) {
   const queryClient = useQueryClient();

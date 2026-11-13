@@ -32,7 +32,10 @@ function App() {
   useEffect(() => {
     if (shownTripId === undefined) return;
     if (window.matchMedia?.("(max-width: 767px)").matches) {
-      detailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      detailsRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
     }
   }, [shownTripId, scrollRequest]);
 
@@ -61,10 +64,7 @@ function App() {
             Your trips
           </h2>
           <AddTripForm onCreated={selectTrip} />
-          <TripList
-            selectedTripId={selectedTripId}
-            onSelect={selectTrip}
-          />
+          <TripList selectedTripId={selectedTripId} onSelect={selectTrip} />
         </section>
 
         <section

@@ -54,7 +54,10 @@ describe("RouteMap", () => {
       [54.36, 18.63],
       [54.371, 18.613],
     ];
-    const option = (mode: ModeOption["mode"], geometry: ModeOption["geometry"]): ModeOption => ({
+    const option = (
+      mode: ModeOption["mode"],
+      geometry: ModeOption["geometry"],
+    ): ModeOption => ({
       mode,
       duration_min: 10,
       distance_km: 2,
@@ -82,7 +85,9 @@ describe("RouteMap", () => {
 
       expect(init).toHaveBeenCalledTimes(3);
       // react-leaflet applies pathOptions after construction, so read the final options.
-      const colours = init.mock.contexts.map((line) => (line as L.Polyline).options.color);
+      const colours = init.mock.contexts.map(
+        (line) => (line as L.Polyline).options.color,
+      );
       expect(colours).toEqual([
         MODE_STYLES.walk.color,
         MODE_STYLES.bike.color,
@@ -101,16 +106,26 @@ describe("RouteMap", () => {
     it("gives walk and bike different line styles so overlapping routes stay visible", () => {
       const init = vi.spyOn(polylineProto, "initialize");
 
-      render(<RouteMap trip={makeTrip()} routes={[option("walk", line), option("bike", line)]} />);
+      render(
+        <RouteMap
+          trip={makeTrip()}
+          routes={[option("walk", line), option("bike", line)]}
+        />,
+      );
 
-      const [walk, bike] = init.mock.contexts.map((l) => (l as L.Polyline).options);
+      const [walk, bike] = init.mock.contexts.map(
+        (l) => (l as L.Polyline).options,
+      );
       expect(walk.dashArray).not.toEqual(bike.dashArray);
     });
 
     it("removes the lines when routes go away (switching trips)", () => {
       const onRemove = vi.spyOn(L.Polyline.prototype, "onRemove");
       const { rerender } = render(
-        <RouteMap trip={makeTrip()} routes={[option("walk", line), option("car", line)]} />,
+        <RouteMap
+          trip={makeTrip()}
+          routes={[option("walk", line), option("car", line)]}
+        />,
       );
 
       rerender(<RouteMap trip={makeTrip({ id: 2 })} />);
@@ -134,7 +149,12 @@ describe("RouteMap", () => {
     it("ignores degenerate geometry with fewer than two points", () => {
       const init = vi.spyOn(polylineProto, "initialize");
 
-      render(<RouteMap trip={makeTrip()} routes={[option("walk", []), option("bike", [[54.3, 18.6]])]} />);
+      render(
+        <RouteMap
+          trip={makeTrip()}
+          routes={[option("walk", []), option("bike", [[54.3, 18.6]])]}
+        />,
+      );
 
       expect(init).not.toHaveBeenCalled();
     });
@@ -143,15 +163,21 @@ describe("RouteMap", () => {
       // Lines mount after the markers (when the comparison arrives), so plain
       // render order would draw them on top; markers need a higher pane.
       const markerInit = vi.spyOn(
-        L.CircleMarker.prototype as unknown as { initialize: (...a: unknown[]) => void },
+        L.CircleMarker.prototype as unknown as {
+          initialize: (...a: unknown[]) => void;
+        },
         "initialize",
       );
       const { container, rerender } = render(<RouteMap trip={makeTrip()} />);
       rerender(<RouteMap trip={makeTrip()} routes={[option("car", line)]} />);
 
-      const markerPanes = markerInit.mock.contexts.map((m) => (m as L.CircleMarker).options.pane);
+      const markerPanes = markerInit.mock.contexts.map(
+        (m) => (m as L.CircleMarker).options.pane,
+      );
       expect(markerPanes).toEqual(["endpoints", "endpoints"]);
-      const pane = container.querySelector<HTMLElement>(".leaflet-endpoints-pane");
+      const pane = container.querySelector<HTMLElement>(
+        ".leaflet-endpoints-pane",
+      );
       expect(Number(pane?.style.zIndex)).toBeGreaterThan(400); // overlayPane is 400
     });
   });
