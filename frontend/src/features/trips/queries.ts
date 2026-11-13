@@ -8,6 +8,7 @@ import {
   listTrips,
 } from "../../lib/api";
 import type { GeocodeResult } from "../../lib/types";
+import { comparisonQueryKey } from "../comparison/queries";
 
 export const tripsQueryKey = ["trips"] as const;
 
@@ -20,6 +21,9 @@ export function useDeleteTrip(onDeleted?: (tripId: number) => void) {
   return useMutation({
     mutationFn: (tripId: number) => deleteTrip(tripId),
     onSuccess: (_data, tripId) => {
+      // SQLite reuses the highest deleted id, so a cached comparison for this id
+      // would otherwise be shown for the next trip that gets it.
+      queryClient.removeQueries({ queryKey: comparisonQueryKey(tripId) });
       onDeleted?.(tripId);
       return queryClient.invalidateQueries({ queryKey: tripsQueryKey });
     },
@@ -74,6 +78,10 @@ export function useCreateTrip() {
         usual_departure_time: form.departureTime || null,
       });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: tripsQueryKey }),
+    onSuccess: (trip) => {
+      // Also covers a reused id after a backend DB reset while this tab was open.
+      queryClient.removeQueries({ queryKey: comparisonQueryKey(trip.id) });
+      return queryClient.invalidateQueries({ queryKey: tripsQueryKey });
+    },
   });
 }

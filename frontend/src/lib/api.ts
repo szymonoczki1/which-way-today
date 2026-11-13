@@ -34,7 +34,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, { ...init, headers });
-  } catch {
+  } catch (error) {
+    // A cancelled request (e.g. user switched trips) is not a server problem;
+    // let TanStack Query see the AbortError and drop it quietly.
+    if (init.signal?.aborted) throw error;
     // Also what the browser reports for a CORS rejection, so don't claim the
     // backend is down for certain.
     throw new ApiError(
@@ -96,5 +99,5 @@ export const deleteTrip = (id: number) =>
 export const geocode = (query: string) =>
   request<GeocodeResult>(`/geocode?${new URLSearchParams({ q: query })}`);
 
-export const getComparison = (tripId: number) =>
-  request<TripComparison>(`/trips/${tripId}/comparison`);
+export const getComparison = (tripId: number, signal?: AbortSignal) =>
+  request<TripComparison>(`/trips/${tripId}/comparison`, { signal });

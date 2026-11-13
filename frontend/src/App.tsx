@@ -1,5 +1,7 @@
 import { lazy, Suspense, useState } from "react";
 
+import { ComparisonPanel } from "./features/comparison/ComparisonPanel";
+import { useComparison } from "./features/comparison/queries";
 import { BackendStatus } from "./features/health/BackendStatus";
 import { AddTripForm } from "./features/trips/AddTripForm";
 import { useTrips } from "./features/trips/queries";
@@ -12,6 +14,8 @@ function App() {
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
   const trips = useTrips();
   const selectedTrip = trips.data?.find((trip) => trip.id === selectedTripId);
+  // Same query key as inside ComparisonPanel, so this is one request, shared.
+  const comparison = useComparison(selectedTrip?.id ?? null);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -53,14 +57,14 @@ function App() {
             <Suspense
               fallback={<p className="text-sm text-slate-500">Loading map…</p>}
             >
-              <RouteMap trip={selectedTrip} />
+              <RouteMap trip={selectedTrip} routes={comparison.data?.options} />
             </Suspense>
           ) : (
             <p className="text-sm text-slate-500">
               Select a trip to see its route and compare ways to get there.
             </p>
           )}
-          {/* Step 8: walk / bike / transit / car comparison with weather. */}
+          {selectedTrip && <ComparisonPanel tripId={selectedTrip.id} />}
         </section>
       </main>
     </div>

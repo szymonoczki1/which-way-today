@@ -8,20 +8,33 @@ import { useEffect } from "react";
 import {
   CircleMarker,
   MapContainer,
+  Pane,
+  Polyline,
   TileLayer,
   Tooltip,
   useMap,
 } from "react-leaflet";
 
-import type { Trip } from "../../lib/types";
+import type { ModeOption, Trip } from "../../lib/types";
+import { MODE_STYLES } from "../comparison/modes";
 
 interface RouteMapProps {
   trip: Trip;
+  /** Comparison options; one line is drawn per option with live geometry. */
+  routes?: ModeOption[];
 }
 
-export default function RouteMap({ trip }: RouteMapProps) {
+export default function RouteMap({ trip, routes = [] }: RouteMapProps) {
   const origin: LatLngTuple = [trip.origin_lat, trip.origin_lon];
   const destination: LatLngTuple = [trip.destination_lat, trip.destination_lon];
+  // A line needs at least two points; anything shorter is skipped.
+  const lines = routes.filter(
+    (route): route is ModeOption & { geometry: [number, number][] } =>
+      route.geometry !== null && route.geometry.length >= 2,
+  );
+  // Fit to the routes too: a detour (river, one-way loop) can leave the
+  // start/destination box and would otherwise be clipped.
+  const fitPoints: LatLngTuple[] = [origin, destination, ...lines.flatMap((l) => l.geometry)];
 
   return (
     <section
@@ -38,22 +51,40 @@ export default function RouteMap({ trip }: RouteMapProps) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {/* CircleMarkers instead of default pins: Leaflet's pin images break under bundlers. */}
-        <CircleMarker
-          center={origin}
-          radius={8}
-          pathOptions={{ color: "#059669", fillOpacity: 0.9 }}
-        >
-          <Tooltip>Start: {trip.origin_address}</Tooltip>
-        </CircleMarker>
-        <CircleMarker
-          center={destination}
-          radius={8}
-          pathOptions={{ color: "#dc2626", fillOpacity: 0.9 }}
-        >
-          <Tooltip>Destination: {trip.destination_address}</Tooltip>
-        </CircleMarker>
-        <FitBounds bounds={[origin, destination]} />
+        {lines.map((route) => (
+          <Polyline
+            key={`${trip.id}-${route.mode}`}
+            positions={route.geometry}
+            pathOptions={{
+              color: MODE_STYLES[route.mode].color,
+              dashArray: MODE_STYLES[route.mode].dashArray,
+              weight: 5,
+              opacity: 0.8,
+            }}
+          >
+            <Tooltip sticky>{MODE_STYLES[route.mode].label}</Tooltip>
+          </Polyline>
+        ))}
+        {/* Own pane above overlayPane (z 400): route lines arrive after the
+            markers, so render order alone would draw them over the markers. */}
+        <Pane name="endpoints" style={{ zIndex: 450 }}>
+          {/* CircleMarkers instead of default pins: Leaflet's pin images break under bundlers. */}
+          <CircleMarker
+            center={origin}
+            radius={8}
+            pathOptions={{ color: "#059669", fillOpacity: 0.9 }}
+          >
+            <Tooltip>Start: {trip.origin_address}</Tooltip>
+          </CircleMarker>
+          <CircleMarker
+            center={destination}
+            radius={8}
+            pathOptions={{ color: "#dc2626", fillOpacity: 0.9 }}
+          >
+            <Tooltip>Destination: {trip.destination_address}</Tooltip>
+          </CircleMarker>
+        </Pane>
+        <FitBounds bounds={fitPoints} />
       </MapContainer>
     </section>
   );
