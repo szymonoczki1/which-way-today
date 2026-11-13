@@ -219,4 +219,23 @@ describe("TripList", () => {
     await waitFor(() => expect(client.getQueryData(["recommendation", 1])).toBeUndefined());
     expect(client.getQueryData(["comparison", 1])).toBeUndefined();
   });
+
+  it("keeps the departure time visible even when the route is truncated", async () => {
+    listTrips.mockResolvedValue([
+      makeTrip({
+        origin_address: "A very long origin address, Gdańsk, Pomorskie, Polska",
+        destination_address: "An even longer destination address, Gdańsk, Polska",
+      }),
+    ]);
+
+    renderWithClient(<TripList selectedTripId={null} onSelect={vi.fn()} />);
+
+    const item = (await screen.findAllByRole("listitem"))[0];
+    // Its own element, not the tail of a line that CSS may cut off with "…".
+    expect(within(item).getByText("08:00", { exact: true })).toBeInTheDocument();
+    // The full route is still available on hover.
+    expect(
+      within(item).getByTitle(/A very long origin address.*An even longer destination/),
+    ).toBeInTheDocument();
+  });
 });

@@ -112,13 +112,14 @@ function WeatherStrip({ weather }: { weather: Weather | null }) {
       aria-label="Current weather"
       className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md bg-sky-50 px-3 py-2 text-sm text-sky-900"
     >
+      {/* Says "current" up front: the recommendation above may use a forecast. */}
       <span className="font-medium">
-        <span aria-hidden="true">{icon}</span> {label}
+        Current weather: <span aria-hidden="true">{icon}</span> {label}
       </span>
       <span>{Math.round(weather.temperature_c)}°C</span>
       <span>Wind {Math.round(weather.wind_speed_kmh)} km/h</span>
       <span>Precipitation {weather.precipitation_mm} mm</span>
-      <span className="text-sky-700">now, at the start</span>
+      <span className="text-sky-700">at the start</span>
     </div>
   );
 }

@@ -111,12 +111,23 @@ function TripItem({
         >
           {trip.name}
         </button>
-        <p className="truncate text-sm text-slate-500">
-          {trip.origin_address} → {trip.destination_address}
-          {/* Backend sends "HH:MM:SS"; minutes are enough here. */}
-          {trip.usual_departure_time &&
-            ` · ${trip.usual_departure_time.slice(0, 5)}`}
-        </p>
+        <div className="flex items-center gap-2 text-sm text-slate-500">
+          {/* Phones wrap the full route (touch has no hover); wider screens cut
+              it off with "…" and show the full text on hover. */}
+          <p
+            className="min-w-0 break-words md:truncate"
+            title={`${trip.origin_address} → ${trip.destination_address}`}
+          >
+            {trip.origin_address} → {trip.destination_address}
+          </p>
+          {trip.usual_departure_time && (
+            // Separate element so truncation never hides it. Backend sends
+            // "HH:MM:SS"; minutes are enough here.
+            <span className="shrink-0 rounded bg-slate-100 px-1.5 text-xs text-slate-600">
+              {trip.usual_departure_time.slice(0, 5)}
+            </span>
+          )}
+        </div>
       </div>
       <button
         type="button"

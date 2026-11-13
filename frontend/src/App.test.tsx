@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 import type { ModeOption, Trip, TripComparison } from "./lib/types";
@@ -201,5 +201,74 @@ describe("App shell", () => {
 
     expect(await screen.findByText("9.99 zł")).toBeInTheDocument();
     expect(screen.queryByText("1.21 zł")).toBeNull();
+  });
+
+  describe("on narrow screens", () => {
+    function setScreen(narrow: boolean) {
+      vi.stubGlobal(
+        "matchMedia",
+        vi.fn((query: string) => ({ matches: narrow, media: query }) as MediaQueryList),
+      );
+      // jsdom doesn't implement scrollIntoView.
+      const scroll = vi.fn();
+      Element.prototype.scrollIntoView = scroll;
+      return scroll;
+    }
+
+    afterEach(() => {
+      // @ts-expect-error -- remove the stub so other tests see jsdom's default
+      delete Element.prototype.scrollIntoView;
+    });
+
+    it("scrolls the selected trip's details into view (they're below the form)", async () => {
+      const scroll = setScreen(true);
+      stubBackend({ trips: [makeTrip({ id: 2, name: "Home -> Gym" })] });
+      const user = userEvent.setup();
+
+      renderWithClient(<App />);
+      await user.click(await screen.findByRole("button", { name: "Home -> Gym" }));
+
+      await vi.waitFor(() => expect(scroll).toHaveBeenCalled());
+      const target = scroll.mock.contexts[0] as HTMLElement;
+      expect(target).toHaveAccessibleName("Home -> Gym");
+    });
+
+    it("scrolls again when the already-selected trip is tapped again", async () => {
+      const scroll = setScreen(true);
+      stubBackend({ trips: [makeTrip({ id: 2, name: "Home -> Gym" })] });
+      const user = userEvent.setup();
+
+      renderWithClient(<App />);
+      const trip = await screen.findByRole("button", { name: "Home -> Gym" });
+      await user.click(trip);
+      await vi.waitFor(() => expect(scroll).toHaveBeenCalledTimes(1));
+      // User scrolled back up to the list and taps the same trip.
+      await user.click(trip);
+
+      await vi.waitFor(() => expect(scroll).toHaveBeenCalledTimes(2));
+    });
+
+    it("does not scroll on first load or on background refetches", async () => {
+      const scroll = setScreen(true);
+      stubBackend({ trips: [makeTrip({ id: 2, name: "Home -> Gym" })] });
+
+      const { client } = renderWithClient(<App />);
+      await screen.findByRole("button", { name: "Home -> Gym" });
+      await client.refetchQueries({ queryKey: ["trips"] });
+
+      expect(scroll).not.toHaveBeenCalled();
+    });
+
+    it("does not scroll on wide screens, where details are beside the list", async () => {
+      const scroll = setScreen(false);
+      stubBackend({ trips: [makeTrip({ id: 2, name: "Home -> Gym" })] });
+      const user = userEvent.setup();
+
+      renderWithClient(<App />);
+      await user.click(await screen.findByRole("button", { name: "Home -> Gym" }));
+      await screen.findByText("Map of Home -> Gym");
+
+      expect(scroll).not.toHaveBeenCalled();
+    });
   });
 });

@@ -267,4 +267,13 @@ describe("ComparisonPanel", () => {
     expect(await screen.findAllByRole("listitem")).toHaveLength(4);
     expect(screen.queryByText(/recommended/i)).toBeNull();
   });
+
+  it("labels the weather strip as current weather (the recommendation may use a forecast)", async () => {
+    getComparison.mockResolvedValue(COMPARISON);
+
+    renderWithClient(<ComparisonPanel tripId={1} />);
+
+    const weather = await screen.findByRole("group", { name: /current weather/i });
+    expect(weather).toHaveTextContent(/^current weather/i);
+  });
 });
