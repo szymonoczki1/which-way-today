@@ -13,4 +13,5 @@ React + Vite + TypeScript. See root [CLAUDE.md](../CLAUDE.md) for the full pictu
 - Leaflet map is isolated in its own component (`src/features/trips/RouteMap.tsx`) so it
   can be lazy-loaded and doesn't fight React's render cycle (Leaflet mutates the DOM
   directly).
-- `npm run lint` (ESLint) before considering a feature done.
+- `npm run lint` (oxlint, from the Vite template; config in `.oxlintrc.json`) and
+  `npm test` (Vitest) before considering a feature done.
