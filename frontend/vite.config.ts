@@ -12,6 +12,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     restoreMocks: true,
+    // Also reset vi.mock()ed module fns: restoreMocks clears call counts but
+    // keeps queued mockResolvedValueOnce values, which leak between tests.
+    mockReset: true,
     unstubGlobals: true,
   },
 })
