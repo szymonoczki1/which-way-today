@@ -87,7 +87,7 @@ cd backend
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
 uvicorn app.main:app --reload
-pytest                      # 122 tests
+pytest                      # 185 tests
 ruff check . && ruff format .
 ```
 
@@ -96,7 +96,7 @@ ruff check . && ruff format .
 cd frontend
 npm ci
 npm run dev
-npm test                    # 105 tests (Vitest + Testing Library)
+npm test                    # 127 tests (Vitest + Testing Library)
 npm run lint && npm run build
 npm run format              # prettier (pinned); format:check to verify
 ```

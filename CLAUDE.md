@@ -23,7 +23,8 @@ frontend/   React + Vite + TypeScript. TanStack Query for server state, Tailwind
 ```
 
 Backend and frontend are independent deployables talking over HTTP (REST, JSON). CORS is
-configured on the backend for local dev (Vite on :5173) and Docker (nginx on :80).
+configured on the backend for the browser origin, `localhost:5173` both in local dev
+(Vite) and in Docker (nginx in the container, published on host port 5173).
 
 Request flow: `router` (HTTP concerns, status codes) -> `service` (business logic: unit
 conversion, scoring, orchestrating external API clients) -> `repository` (SQLModel
@@ -36,7 +37,6 @@ Backend (run from `backend/`):
 - `uvicorn app.main:app --reload` — run the API on :8000
 - `pytest` — run tests
 - `ruff check . && ruff format .` — lint + format
-- `pytest --cov=app` — coverage (optional, nice to have)
 
 Frontend (run from `frontend/`):
 - `npm run dev` — Vite dev server on :5173
@@ -54,14 +54,14 @@ Docker (run from repo root):
   one feature/step at a time.
 - **Keep `backend/Dockerfile` and `frontend/Dockerfile` in sync whenever dependencies
   change** (requirements.txt / package.json). Docker is tested against a fresh clone
-  before submission, not just local `uv`/`npm` state.
+  before submission, not just local venv/`npm` state (`scripts/docker-smoke.sh`).
 - **The app must work with zero configuration and no AI API key.** If `OPENAI_API_KEY`
   (or equivalent) is unset, the recommendation service falls back to a deterministic
   rule-based recommendation. Never make the AI key a hard dependency for any endpoint.
-- External APIs (Nominatim, OSRM, Open-Meteo) are free/keyless but rate-limited and
-  sometimes flaky — always have a documented static fallback (e.g. static CO2/cost
-  factors for public transport) and handle timeouts gracefully, don't let one slow
-  upstream call hang an endpoint.
+- External APIs (Nominatim, OSRM, Transitous, Open-Meteo) are free/keyless but
+  rate-limited and sometimes flaky — always have a documented static fallback (e.g. the
+  public transport estimate when Transitous fails) and handle timeouts gracefully, don't
+  let one slow upstream call hang an endpoint.
 - Nominatim requires a descriptive `User-Agent` header — see `backend/CLAUDE.md`.
 - No premature abstraction: this is an MVP under a hard deadline. Prefer three similar
   lines over a speculative helper used once.

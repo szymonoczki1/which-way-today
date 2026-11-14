@@ -5,8 +5,10 @@ FastAPI + SQLModel + SQLite. See root [CLAUDE.md](../CLAUDE.md) for the full pic
 - Layout: `app/routers`, `app/services`, `app/repositories`, `app/clients` (Nominatim,
   OSRM, Transitous, Open-Meteo, LLM), `app/models.py` (SQLModel tables), `app/schemas.py` (Pydantic
   request/response DTOs, kept separate from DB models).
-- Routers depend on services via `Depends(...)`; services depend on repositories the same
-  way. This makes services unit-testable with a fake/in-memory repository.
+- Routers call services, never the DB. Trips: the router gets a `TripService` via
+  `Depends(...)`, which gets its `TripRepository` the same way (unit-testable with a fake
+  repository). Comparison, recommendation and geocoding services are plain functions the
+  routers call directly; they use clients, not the DB.
 - All external HTTP calls (Nominatim/OSRM/Transitous/Open-Meteo/OpenAI) go through `app/clients/*`, each
   with a short timeout and a typed return value — never call `httpx`/`requests` directly
   from a service.
