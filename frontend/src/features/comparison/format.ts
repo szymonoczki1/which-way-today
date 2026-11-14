@@ -36,12 +36,6 @@ const WEEKDAY = new Intl.DateTimeFormat("en-GB", {
   timeZone: ZONE,
 });
 
-/** "2026-11-14T07:04:00Z" -> "08:04" (Gdańsk time); "" if unparseable. */
-export function formatClock(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? "" : CLOCK.format(date);
-}
-
 /** Departure with its day when it isn't today: "08:04", "04:30 tomorrow", "08:00 on Mon". */
 export function formatDeparture(iso: string, now: Date = new Date()): string {
   const date = new Date(iso);

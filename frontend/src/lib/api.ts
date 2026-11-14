@@ -94,11 +94,8 @@ async function errorMessage(response: Response): Promise<string> {
 export const getHealth = () => request<{ status: string }>("/health");
 
 export const listTrips = () => request<Trip[]>("/trips");
-export const getTrip = (id: number) => request<Trip>(`/trips/${id}`);
 export const createTrip = (data: TripInput) =>
   request<Trip>("/trips", { method: "POST", body: JSON.stringify(data) });
-export const updateTrip = (id: number, data: TripInput) =>
-  request<Trip>(`/trips/${id}`, { method: "PUT", body: JSON.stringify(data) });
 export const deleteTrip = (id: number) =>
   request<void>(`/trips/${id}`, { method: "DELETE" });
 

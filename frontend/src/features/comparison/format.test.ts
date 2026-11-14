@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  formatClock,
   formatDeparture,
   formatCo2,
   formatCost,
@@ -72,13 +71,6 @@ describe("describeWeather", () => {
   });
 });
 
-describe("formatClock", () => {
-  it("shows Gdańsk local time for a UTC timestamp (winter and summer)", () => {
-    expect(formatClock("2026-11-14T07:04:00Z")).toBe("08:04");
-    expect(formatClock("2026-07-01T06:30:00Z")).toBe("08:30");
-  });
-});
-
 describe("formatDeparture", () => {
   const now = new Date("2026-11-14T22:30:00Z"); // 23:30 in Gdańsk, Sat 14 Nov
 
@@ -92,6 +84,13 @@ describe("formatDeparture", () => {
 
   it("names the day when it's further out", () => {
     expect(formatDeparture("2026-11-16T07:00:00Z", now)).toBe("08:00 on Mon");
+  });
+
+  it("uses Gdańsk time in summer too (UTC+2)", () => {
+    const summerMorning = new Date("2026-07-01T04:00:00Z");
+    expect(formatDeparture("2026-07-01T06:30:00Z", summerMorning)).toBe(
+      "08:30",
+    );
   });
 
   it("uses Gdańsk dates, not UTC dates", () => {
