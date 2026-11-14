@@ -60,7 +60,8 @@ class RecommendationWeather(WeatherResult):
 
 
 class Recommendation(BaseModel):
-    trip_id: int
+    # None for a route checked without saving it (GET /routes/recommendation).
+    trip_id: int | None
     # "ai" when the LLM answered validly, "rules" for the deterministic fallback.
     source: Literal["ai", "rules"]
     recommended_mode: Mode
@@ -70,7 +71,8 @@ class Recommendation(BaseModel):
 
 
 class TripComparison(BaseModel):
-    trip_id: int
+    # None for a route checked without saving it (GET /routes/comparison).
+    trip_id: int | None
     # None if Open-Meteo failed or timed out; the comparison is still returned.
     weather: WeatherResult | None
     options: list[ModeOption]

@@ -1,28 +1,38 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 
-import { useCreateTrip } from "./queries";
+import type { TripInput } from "../../lib/types";
+import { useCheckRoute, useCreateTrip, type NewTripForm } from "./queries";
 
 interface AddTripFormProps {
   onCreated: (tripId: number) => void;
+  /** "Check route": addresses looked up, nothing saved. */
+  onChecked?: (route: TripInput) => void;
 }
 
 const inputClass =
   "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500";
 
-export function AddTripForm({ onCreated }: AddTripFormProps) {
+function readForm(form: HTMLFormElement): NewTripForm {
+  const data = new FormData(form);
+  return {
+    name: String(data.get("name") ?? "").trim(),
+    origin: String(data.get("origin") ?? "").trim(),
+    destination: String(data.get("destination") ?? "").trim(),
+    departureTime: String(data.get("departureTime") ?? ""),
+  };
+}
+
+export function AddTripForm({ onCreated, onChecked }: AddTripFormProps) {
+  const formRef = useRef<HTMLFormElement>(null);
   const creation = useCreateTrip();
+  const check = useCheckRoute();
   const [validationError, setValidationError] = useState<string | null>(null);
+  const busy = creation.isPending || check.isPending;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
-    const data = new FormData(form);
-    const values = {
-      name: String(data.get("name") ?? "").trim(),
-      origin: String(data.get("origin") ?? "").trim(),
-      destination: String(data.get("destination") ?? "").trim(),
-      departureTime: String(data.get("departureTime") ?? ""),
-    };
+    const values = readForm(form);
 
     // `required` alone accepts whitespace-only input.
     if (!values.name || !values.origin || !values.destination) {
@@ -32,6 +42,7 @@ export function AddTripForm({ onCreated }: AddTripFormProps) {
       return;
     }
     setValidationError(null);
+    check.reset(); // show only the error of the action just taken
 
     creation.mutate(values, {
       onSuccess: (trip) => {
@@ -41,16 +52,40 @@ export function AddTripForm({ onCreated }: AddTripFormProps) {
     });
   }
 
-  const error =
-    validationError ?? (creation.isError ? creation.error.message : null);
+  function handleCheck() {
+    if (!formRef.current) return;
+    const values = readForm(formRef.current);
+    // Checking doesn't need a name; that's only for saving.
+    if (!values.origin || !values.destination) {
+      setValidationError("Please fill in a starting point and a destination.");
+      return;
+    }
+    setValidationError(null);
+    creation.reset();
+
+    // The form keeps its values, so the user can tweak and check again.
+    check.mutate(values, { onSuccess: (route) => onChecked?.(route) });
+  }
+
+  const failed = check.isError
+    ? check.error
+    : creation.isError
+      ? creation.error
+      : null;
+  const error = validationError ?? failed?.message ?? null;
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-3">
+    <form
+      ref={formRef}
+      onSubmit={handleSubmit}
+      noValidate
+      className="space-y-3"
+    >
       <label className="block text-sm font-medium text-slate-700">
-        Trip name
+        Trip name{" "}
+        <span className="font-normal text-slate-400">(only for saving)</span>
         <input
           name="name"
-          required
           maxLength={100}
           placeholder="Home → University"
           className={inputClass}
@@ -92,13 +127,25 @@ export function AddTripForm({ onCreated }: AddTripFormProps) {
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={creation.isPending}
-        className="w-full rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-      >
-        {creation.isPending ? "Saving… (looking up addresses)" : "Save trip"}
-      </button>
+      <div className="flex gap-2">
+        {onChecked && (
+          <button
+            type="button"
+            onClick={handleCheck}
+            disabled={busy}
+            className="flex-1 rounded-md border border-emerald-600 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
+          >
+            {check.isPending ? "Checking…" : "Check route"}
+          </button>
+        )}
+        <button
+          type="submit"
+          disabled={busy}
+          className="flex-1 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+        >
+          {creation.isPending ? "Saving… (looking up addresses)" : "Save trip"}
+        </button>
+      </div>
     </form>
   );
 }

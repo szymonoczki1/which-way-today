@@ -44,6 +44,89 @@ const VALID = {
 };
 
 describe("AddTripForm", () => {
+  describe("Check route (without saving)", () => {
+    it("looks up both addresses and reports the route, without saving", async () => {
+      geocode.mockResolvedValueOnce(ORIGIN).mockResolvedValueOnce(DESTINATION);
+      const onChecked = vi.fn();
+      const user = userEvent.setup();
+
+      renderWithClient(
+        <AddTripForm onCreated={vi.fn()} onChecked={onChecked} />,
+      );
+      // No name: checking doesn't need one.
+      await fillForm(user, {
+        origin: "Gdansk Glowny",
+        destination: "Politechnika",
+        time: "07:45",
+      });
+      await user.click(screen.getByRole("button", { name: /check route/i }));
+
+      await waitFor(() => expect(onChecked).toHaveBeenCalled());
+      expect(onChecked).toHaveBeenCalledWith({
+        name: "",
+        origin_address: "Gdansk Glowny",
+        origin_lat: 54.355,
+        origin_lon: 18.646,
+        destination_address: "Politechnika",
+        destination_lat: 54.371,
+        destination_lon: 18.613,
+        usual_departure_time: "07:45",
+      });
+      expect(createTrip).not.toHaveBeenCalled();
+      // The form keeps its values so the user can tweak and check again.
+      expect(screen.getByLabelText(/from/i)).toHaveValue("Gdansk Glowny");
+    });
+
+    it("needs a start and destination, but not a name", async () => {
+      const user = userEvent.setup();
+
+      renderWithClient(<AddTripForm onCreated={vi.fn()} onChecked={vi.fn()} />);
+      await fillForm(user, { name: "Only a name", origin: "   " });
+      await user.click(screen.getByRole("button", { name: /check route/i }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        /starting point and a destination/i,
+      );
+      expect(geocode).not.toHaveBeenCalled();
+    });
+
+    it("names the address that wasn't found", async () => {
+      geocode
+        .mockResolvedValueOnce(ORIGIN)
+        .mockRejectedValueOnce(new ApiError(404, "nope"));
+      const onChecked = vi.fn();
+      const user = userEvent.setup();
+
+      renderWithClient(
+        <AddTripForm onCreated={vi.fn()} onChecked={onChecked} />,
+      );
+      await fillForm(user, {
+        origin: "Gdansk Glowny",
+        destination: "Atlantis 9",
+      });
+      await user.click(screen.getByRole("button", { name: /check route/i }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        /couldn't find "Atlantis 9"/i,
+      );
+      expect(onChecked).not.toHaveBeenCalled();
+    });
+
+    it("disables both buttons while checking", async () => {
+      geocode.mockReturnValue(new Promise(() => {}));
+      const user = userEvent.setup();
+
+      renderWithClient(<AddTripForm onCreated={vi.fn()} onChecked={vi.fn()} />);
+      await fillForm(user, { origin: "A", destination: "B" });
+      await user.click(screen.getByRole("button", { name: /check route/i }));
+
+      expect(
+        await screen.findByRole("button", { name: /checking/i }),
+      ).toBeDisabled();
+      expect(screen.getByRole("button", { name: /save trip/i })).toBeDisabled();
+    });
+  });
+
   it("geocodes both addresses, saves the trip with null time, and reports the new id", async () => {
     geocode.mockResolvedValueOnce(ORIGIN).mockResolvedValueOnce(DESTINATION);
     createTrip.mockResolvedValue(makeTrip({ id: 7 }));

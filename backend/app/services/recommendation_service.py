@@ -262,7 +262,6 @@ def _ai_recommendation(
 
 
 def recommend_trip(trip: Trip, deadline_s: float = DEADLINE_S) -> Recommendation:
-    assert trip.id is not None, "only saved trips can be recommended"
     started = time.monotonic()
 
     pool = ThreadPoolExecutor(max_workers=2)

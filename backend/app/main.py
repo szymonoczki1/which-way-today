@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.db import init_db
-from app.routers import geocode, trips
+from app.routers import geocode, routes, trips
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,7 @@ def create_app() -> FastAPI:
 
     app.include_router(trips.router)
     app.include_router(geocode.router)
+    app.include_router(routes.router)
 
     return app
 

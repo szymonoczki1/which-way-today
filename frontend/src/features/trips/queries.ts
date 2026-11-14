@@ -7,7 +7,7 @@ import {
   geocode,
   listTrips,
 } from "../../lib/api";
-import type { GeocodeResult } from "../../lib/types";
+import type { GeocodeResult, Trip, TripInput } from "../../lib/types";
 import {
   comparisonQueryKey,
   recommendationQueryKey,
@@ -61,32 +61,54 @@ async function locate(address: string): Promise<GeocodeResult> {
   }
 }
 
-export function useCreateTrip() {
+/** Geocode both addresses into a trip that can be checked or saved. */
+async function resolveTrip(form: NewTripForm): Promise<TripInput> {
+  // Sequential on purpose: the backend spaces Nominatim calls 1 s apart anyway,
+  // and this way a bad origin fails before we spend a request on the destination.
+  const origin = await locate(form.origin);
+  const destination = await locate(form.destination);
+  return {
+    name: form.name,
+    origin_address: form.origin,
+    origin_lat: origin.lat,
+    origin_lon: origin.lon,
+    destination_address: form.destination,
+    destination_lat: destination.lat,
+    destination_lon: destination.lon,
+    usual_departure_time: form.departureTime || null,
+  };
+}
+
+function useAfterSave() {
   const queryClient = useQueryClient();
+  return (trip: Trip) => {
+    // Also covers a reused id after a backend DB reset while this tab was open.
+    queryClient.removeQueries({ queryKey: comparisonQueryKey(trip.id) });
+    queryClient.removeQueries({ queryKey: recommendationQueryKey(trip.id) });
+    return queryClient.invalidateQueries({ queryKey: tripsQueryKey });
+  };
+}
+
+export function useCreateTrip() {
+  const afterSave = useAfterSave();
   return useMutation({
-    mutationFn: async (form: NewTripForm) => {
-      // Geocode once, here, and store the coordinates: comparisons never
-      // re-geocode. Sequential on purpose: the backend spaces Nominatim calls
-      // 1 s apart anyway, and this way a bad origin fails before we spend a
-      // request on the destination.
-      const origin = await locate(form.origin);
-      const destination = await locate(form.destination);
-      return createTrip({
-        name: form.name,
-        origin_address: form.origin,
-        origin_lat: origin.lat,
-        origin_lon: origin.lon,
-        destination_address: form.destination,
-        destination_lat: destination.lat,
-        destination_lon: destination.lon,
-        usual_departure_time: form.departureTime || null,
-      });
-    },
-    onSuccess: (trip) => {
-      // Also covers a reused id after a backend DB reset while this tab was open.
-      queryClient.removeQueries({ queryKey: comparisonQueryKey(trip.id) });
-      queryClient.removeQueries({ queryKey: recommendationQueryKey(trip.id) });
-      return queryClient.invalidateQueries({ queryKey: tripsQueryKey });
-    },
+    // Geocode once, here, and store the coordinates: comparisons never re-geocode.
+    mutationFn: async (form: NewTripForm) =>
+      createTrip(await resolveTrip(form)),
+    onSuccess: afterSave,
+  });
+}
+
+/** Look up the addresses for a route to check without saving it. */
+export function useCheckRoute() {
+  return useMutation({ mutationFn: resolveTrip });
+}
+
+/** Save an already-resolved route (e.g. one just checked): no second lookup. */
+export function useSaveTrip() {
+  const afterSave = useAfterSave();
+  return useMutation({
+    mutationFn: (trip: TripInput) => createTrip(trip),
+    onSuccess: afterSave,
   });
 }

@@ -1,13 +1,17 @@
-import type { RecommendationWeather } from "../../lib/types";
+import type { RecommendationWeather, RouteQuery } from "../../lib/types";
 import { MODE_STYLES } from "./modes";
 import { useRecommendation } from "./queries";
 
 interface RecommendationCardProps {
-  tripId: number;
+  /** A saved trip... */
+  tripId?: number;
+  /** ...or a route checked without saving it. */
+  route?: RouteQuery;
 }
 
-export function RecommendationCard({ tripId }: RecommendationCardProps) {
-  const recommendation = useRecommendation(tripId);
+export function RecommendationCard({ tripId, route }: RecommendationCardProps) {
+  const source = tripId ?? route ?? null;
+  const recommendation = useRecommendation(source);
 
   if (recommendation.isPending) {
     return (

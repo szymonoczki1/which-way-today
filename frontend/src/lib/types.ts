@@ -70,7 +70,8 @@ export interface ModeOption {
 }
 
 export interface TripComparison {
-  trip_id: number;
+  /** null for an unsaved route. */
+  trip_id: number | null;
   /** null when the weather service failed or timed out. */
   weather: Weather | null;
   options: ModeOption[];
@@ -83,11 +84,32 @@ export interface RecommendationWeather extends Weather {
 }
 
 export interface Recommendation {
-  trip_id: number;
+  /** null for an unsaved route. */
+  trip_id: number | null;
   /** "ai" when the LLM answered validly; "rules" for the deterministic fallback. */
   source: "ai" | "rules";
   recommended_mode: Mode;
   headline: string;
   reasons: string[];
   weather: RecommendationWeather | null;
+}
+
+/** A route checked without saving it (GET /routes/comparison, /routes/recommendation). */
+export interface RouteQuery {
+  origin_lat: number;
+  origin_lon: number;
+  destination_lat: number;
+  destination_lon: number;
+  /** "HH:MM" local time, or null to leave now. */
+  departure_time: string | null;
+}
+
+export function toRouteQuery(trip: TripInput): RouteQuery {
+  return {
+    origin_lat: trip.origin_lat,
+    origin_lon: trip.origin_lon,
+    destination_lat: trip.destination_lat,
+    destination_lon: trip.destination_lon,
+    departure_time: trip.usual_departure_time?.slice(0, 5) ?? null,
+  };
 }

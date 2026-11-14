@@ -1,5 +1,5 @@
 import { ApiError } from "../../lib/api";
-import type { ModeOption, Weather } from "../../lib/types";
+import type { ModeOption, Weather, RouteQuery } from "../../lib/types";
 import {
   describeWeather,
   formatCo2,
@@ -12,13 +12,17 @@ import { MODE_STYLES } from "./modes";
 import { useComparison, useRecommendation } from "./queries";
 
 interface ComparisonPanelProps {
-  tripId: number;
+  /** A saved trip... */
+  tripId?: number;
+  /** ...or a route checked without saving it. */
+  route?: RouteQuery;
 }
 
-export function ComparisonPanel({ tripId }: ComparisonPanelProps) {
-  const comparison = useComparison(tripId);
+export function ComparisonPanel({ tripId, route }: ComparisonPanelProps) {
+  const source = tripId ?? route ?? null;
+  const comparison = useComparison(source);
   // Same query as RecommendationCard: shared, one request. Cards don't wait for it.
-  const recommended = useRecommendation(tripId).data?.recommended_mode;
+  const recommended = useRecommendation(source).data?.recommended_mode;
 
   if (comparison.isPending) {
     return (
@@ -31,8 +35,11 @@ export function ComparisonPanel({ tripId }: ComparisonPanelProps) {
   const data = comparison.data;
   if (!data) {
     // Error with nothing cached to fall back on.
+    // A 404 means a *saved* trip was deleted elsewhere; for a route it's a plain error.
     const gone =
-      comparison.error instanceof ApiError && comparison.error.status === 404;
+      tripId !== undefined &&
+      comparison.error instanceof ApiError &&
+      comparison.error.status === 404;
     if (gone) {
       return (
         <p
@@ -48,7 +55,10 @@ export function ComparisonPanel({ tripId }: ComparisonPanelProps) {
         role="alert"
         className="rounded-md bg-red-50 p-3 text-sm text-red-700"
       >
-        <p>Couldn't compare this trip: {comparison.error?.message}</p>
+        <p>
+          Couldn't compare this {tripId !== undefined ? "trip" : "route"}:{" "}
+          {comparison.error?.message}
+        </p>
         <button
           type="button"
           onClick={() => comparison.refetch()}

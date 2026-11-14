@@ -1,6 +1,7 @@
 import type {
   GeocodeResult,
   Recommendation,
+  RouteQuery,
   Trip,
   TripComparison,
   TripInput,
@@ -111,3 +112,28 @@ export const getComparison = (tripId: number, signal?: AbortSignal) =>
 /** Always 200 for an existing trip: rule-based when the AI is off or fails. */
 export const getRecommendation = (tripId: number, signal?: AbortSignal) =>
   request<Recommendation>(`/trips/${tripId}/recommendation`, { signal });
+
+function routeParams(route: RouteQuery): URLSearchParams {
+  const params = new URLSearchParams({
+    origin_lat: String(route.origin_lat),
+    origin_lon: String(route.origin_lon),
+    destination_lat: String(route.destination_lat),
+    destination_lon: String(route.destination_lon),
+  });
+  if (route.departure_time) params.set("departure_time", route.departure_time);
+  return params;
+}
+
+/** Compare a route without saving it (trip_id is null). */
+export const getRouteComparison = (route: RouteQuery, signal?: AbortSignal) =>
+  request<TripComparison>(`/routes/comparison?${routeParams(route)}`, {
+    signal,
+  });
+
+export const getRouteRecommendation = (
+  route: RouteQuery,
+  signal?: AbortSignal,
+) =>
+  request<Recommendation>(`/routes/recommendation?${routeParams(route)}`, {
+    signal,
+  });

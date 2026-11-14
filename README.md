@@ -24,6 +24,9 @@ bike ride on a dry morning and a miserable one in sleet. This app puts the trade
 
 ## Features
 
+- **Check a route without saving it.** Enter From/To (and optionally a time), press
+  *Check route*, and get the same map, recommendation and comparison. *Save this trip*
+  keeps it afterwards, reusing the looked-up coordinates.
 - **Saved trips.** Name, origin, destination and an optional usual departure time.
   Addresses are geocoded once when a trip is saved; you see whether an address wasn't
   found or the lookup service is temporarily down.
@@ -125,6 +128,7 @@ found" (404) from "geocoding unavailable" (503).
 | `GET/POST /trips`, `GET/PUT/DELETE /trips/{id}` | Saved trips (coordinates are stored with the trip) |
 | `GET /geocode?q=` | Address → coordinates. `404` not found, `503` geocoding unavailable |
 | `GET /trips/{id}/comparison` | Four modes with time, distance, cost, CO₂, `is_estimate`, route geometry, and current weather. Always `200` for an existing trip |
+| `GET /routes/comparison`, `GET /routes/recommendation` | Same as the two above for a route that isn't saved: query params `origin_lat`, `origin_lon`, `destination_lat`, `destination_lon`, optional `departure_time` (`HH:MM`). `trip_id` is `null`; nothing is written |
 | `GET /trips/{id}/recommendation` | `source: "ai" \| "rules"`, recommended mode, headline, reasons, and the weather used (forecast or current). Always `200` for an existing trip |
 
 ## Key decisions and trade-offs

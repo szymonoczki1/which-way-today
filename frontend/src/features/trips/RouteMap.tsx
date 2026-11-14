@@ -15,11 +15,12 @@ import {
   useMap,
 } from "react-leaflet";
 
-import type { ModeOption, Trip } from "../../lib/types";
+import type { ModeOption, TripInput } from "../../lib/types";
 import { MODE_STYLES } from "../comparison/modes";
 
 interface RouteMapProps {
-  trip: Trip;
+  /** A saved trip, or an unsaved route being checked (no id). */
+  trip: TripInput & { id?: number };
   /** Comparison options; one line is drawn per option with live geometry. */
   routes?: ModeOption[];
 }
@@ -57,7 +58,7 @@ export default function RouteMap({ trip, routes = [] }: RouteMapProps) {
         />
         {lines.map((route) => (
           <Polyline
-            key={`${trip.id}-${route.mode}`}
+            key={`${trip.id ?? "unsaved"}-${route.mode}`}
             positions={route.geometry}
             pathOptions={{
               color: MODE_STYLES[route.mode].color,

@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -75,6 +75,8 @@ function stubBackend({ healthy = true, trips = [] as Trip[] } = {}) {
     }
     if (url.endsWith("/trips")) return Response.json(trips);
     if (/\/trips\/\d+\/comparison$/.test(url)) return Response.json(COMPARISON);
+    if (url.includes("/routes/comparison?"))
+      return Response.json({ ...COMPARISON, trip_id: null });
     return new Response(null, { status: 404 });
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -324,6 +326,156 @@ describe("App shell", () => {
       await screen.findByText("Map of Home -> Gym");
 
       expect(scroll).not.toHaveBeenCalled();
+    });
+  });
+
+  it("checks a route without saving, then saves it without looking up the addresses again", async () => {
+    let trips: Trip[] = [];
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async (input, init) => {
+        const url = new URL(String(input));
+        const method = init?.method ?? "GET";
+        calls.push(`${method} ${url.pathname}`);
+        if (url.pathname === "/health") return Response.json({ status: "ok" });
+        if (url.pathname === "/geocode") {
+          const q = url.searchParams.get("q");
+          return Response.json(
+            q === "Home"
+              ? { lat: 54.35, lon: 18.64, display_name: "Home" }
+              : { lat: 54.37, lon: 18.61, display_name: "Pool" },
+          );
+        }
+        if (url.pathname === "/routes/comparison") {
+          expect(url.searchParams.get("origin_lat")).toBe("54.35");
+          expect(url.searchParams.get("destination_lon")).toBe("18.61");
+          return Response.json({ ...COMPARISON, trip_id: null });
+        }
+        if (url.pathname === "/routes/recommendation")
+          return new Response(null, { status: 503 });
+        if (url.pathname === "/trips" && method === "GET")
+          return Response.json(trips);
+        if (url.pathname === "/trips" && method === "POST") {
+          const body = JSON.parse(String(init?.body));
+          expect(body).toMatchObject({
+            name: "Pool run",
+            origin_lat: 54.35,
+            destination_lon: 18.61,
+            origin_address: "Home",
+          });
+          const trip = { id: 9, ...body } as Trip;
+          trips = [trip];
+          return Response.json(trip, { status: 201 });
+        }
+        if (url.pathname === "/trips/9/comparison")
+          return Response.json({ ...COMPARISON, trip_id: 9 });
+        return new Response(null, { status: 404 });
+      }),
+    );
+    const user = userEvent.setup();
+
+    renderWithClient(<App />);
+    await user.type(screen.getByLabelText(/from/i), "Home");
+    await user.type(screen.getByLabelText(/^to$/i), "Pool");
+    await user.click(screen.getByRole("button", { name: /check route/i }));
+
+    // Results for the unsaved route, clearly marked as not saved.
+    expect(await screen.findByText(/not saved/i)).toBeInTheDocument();
+    expect(await screen.findByText("Map of Home → Pool")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("listitem", { name: /car/i }),
+    ).toHaveTextContent("1.21 zł");
+    expect(calls).not.toContain("POST /trips");
+    expect(screen.getByText(/no trips yet/i)).toBeInTheDocument();
+
+    // Save it under a name; no new address lookups.
+    const name = screen.getByRole("textbox", { name: /name this trip/i });
+    await user.clear(name);
+    await user.type(name, "Pool run");
+    await user.click(screen.getByRole("button", { name: /save this trip/i }));
+
+    expect(
+      await screen.findByRole("button", { name: "Pool run" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByText(/not saved/i)).toBeNull();
+    expect(calls.filter((c) => c === "GET /geocode")).toHaveLength(2);
+  });
+
+  describe("checked routes", () => {
+    function stubRouteBackend(trips: Trip[] = []) {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn<typeof fetch>(async (input) => {
+          const url = new URL(String(input));
+          if (url.pathname === "/health")
+            return Response.json({ status: "ok" });
+          if (url.pathname === "/geocode")
+            return Response.json({ lat: 54.35, lon: 18.64, display_name: "x" });
+          if (url.pathname === "/routes/comparison")
+            return Response.json({ ...COMPARISON, trip_id: null });
+          if (url.pathname === "/trips") return Response.json(trips);
+          if (/^\/trips\/\d+\/comparison$/.test(url.pathname))
+            return Response.json(COMPARISON);
+          return new Response(null, { status: 404 });
+        }),
+      );
+    }
+
+    async function check(user: ReturnType<typeof userEvent.setup>, name = "") {
+      const nameInput = screen.getByLabelText(/trip name/i);
+      await user.clear(nameInput);
+      if (name) await user.type(nameInput, name);
+      await user.click(screen.getByRole("button", { name: /check route/i }));
+      return screen.findByRole("textbox", { name: /name this trip/i });
+    }
+
+    it("gives each check a fresh save banner, even for the same coordinates", async () => {
+      stubRouteBackend();
+      const user = userEvent.setup();
+      renderWithClient(<App />);
+      await user.type(screen.getByLabelText(/from/i), "Home");
+      await user.type(screen.getByLabelText(/^to$/i), "Pool");
+
+      const first = await check(user);
+      await user.clear(first);
+      await user.type(first, "Typed in the banner");
+      const second = await check(user, "Swim");
+
+      await waitFor(() => expect(second).toHaveValue("Swim"));
+    });
+
+    it("announces the unsaved result to screen readers", async () => {
+      stubRouteBackend();
+      const user = userEvent.setup();
+      renderWithClient(<App />);
+      await user.type(screen.getByLabelText(/from/i), "Home");
+      await user.type(screen.getByLabelText(/^to$/i), "Pool");
+
+      await check(user);
+
+      const statuses = screen
+        .getAllByRole("status")
+        .map((el) => el.textContent ?? "");
+      expect(statuses.some((t) => /not saved yet/i.test(t))).toBe(true);
+    });
+
+    it("replaces a selected saved trip when a route is checked", async () => {
+      stubRouteBackend([makeTrip({ id: 2, name: "Home -> Gym" })]);
+      const user = userEvent.setup();
+      renderWithClient(<App />);
+      await user.click(
+        await screen.findByRole("button", { name: "Home -> Gym" }),
+      );
+      await user.type(screen.getByLabelText(/from/i), "Home");
+      await user.type(screen.getByLabelText(/^to$/i), "Pool");
+
+      await check(user);
+
+      expect(
+        screen.getByRole("button", { name: "Home -> Gym" }),
+      ).toHaveAttribute("aria-pressed", "false");
+      expect(await screen.findByText("Map of Home → Pool")).toBeInTheDocument();
     });
   });
 });

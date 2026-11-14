@@ -80,18 +80,19 @@ CAR_CO2_G_PER_KM = 170.0  # average real-world passenger car, single occupant
 # /comparison and /recommendation are requested together for the same trip view.
 # Sharing one computation keeps their numbers identical (no badge on a card the
 # recommendation's own numbers wouldn't pick) and halves upstream calls. Keyed by
-# id, coordinates *and* departure time, since SQLite can reuse a deleted trip's id
-# and the transit journey depends on when you leave.
+# what the result depends on (coordinates and departure time), not by trip id: a
+# reused SQLite id can't hit a stale entry, and checking a route then saving it
+# reuses the same computation. The requested trip_id is stamped on the way out.
 SHARED_TTL_S = 60.0
 _shared: dict[tuple[object, ...], tuple[float, Future[TripComparison]]] = {}
 _shared_lock = threading.Lock()
 
 
 def get_shared_comparison(trip: Trip) -> TripComparison:
-    """compare_trip, but concurrent/recent calls for the same trip share one result."""
-    assert trip.id is not None, "only saved trips can be compared"
+    """compare_trip, but concurrent/recent calls for the same route share one result.
+
+    `trip` may be unsaved (id None) when a route is checked without saving it."""
     key = (
-        trip.id,
         trip.origin_lat,
         trip.origin_lon,
         trip.destination_lat,
@@ -117,11 +118,11 @@ def get_shared_comparison(trip: Trip) -> TripComparison:
             with _shared_lock:
                 _shared.pop(key, None)
     # Waiters block at most as long as the owner's compare_trip (its own deadline).
-    return future.result()
+    return future.result().model_copy(update={"trip_id": trip.id})
 
 
 def compare_trip(trip: Trip, deadline_s: float = DEADLINE_S) -> TripComparison:
-    assert trip.id is not None, "only saved trips can be compared"
+    """Compare modes for a trip; `trip` may be unsaved (id None)."""
 
     route_futures = {
         profile: _executor.submit(

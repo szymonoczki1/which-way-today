@@ -12,6 +12,8 @@ vi.mock("../../lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../lib/api")>()),
   getComparison: vi.fn(),
   getRecommendation: vi.fn(),
+  getRouteComparison: vi.fn(),
+  getRouteRecommendation: vi.fn(),
 }));
 
 const getComparison = vi.mocked(api.getComparison);
@@ -446,6 +448,36 @@ describe("ComparisonPanel", () => {
       expect(
         await screen.findByText(/no timetable journey/i),
       ).toBeInTheDocument();
+    });
+  });
+
+  describe("for an unsaved route", () => {
+    const ROUTE = {
+      origin_lat: 54.35,
+      origin_lon: 18.64,
+      destination_lat: 54.37,
+      destination_lon: 18.61,
+      departure_time: null,
+    };
+
+    it("talks about the route, not a deleted trip, on 404 and offers retry", async () => {
+      vi.mocked(api.getRouteComparison).mockRejectedValue(
+        new ApiError(404, "Not Found"),
+      );
+      vi.mocked(api.getRouteRecommendation).mockReturnValue(
+        new Promise(() => {}),
+      );
+
+      const { client } = renderWithClient(<ComparisonPanel route={ROUTE} />);
+      const invalidate = vi.spyOn(client, "invalidateQueries");
+
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(/couldn't compare this route/i);
+      expect(alert).not.toHaveTextContent(/no longer exists/i);
+      expect(
+        screen.getByRole("button", { name: /try again/i }),
+      ).toBeInTheDocument();
+      expect(invalidate).not.toHaveBeenCalled();
     });
   });
 });

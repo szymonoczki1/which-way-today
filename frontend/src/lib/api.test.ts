@@ -8,6 +8,8 @@ import {
   geocode,
   getComparison,
   getHealth,
+  getRouteComparison,
+  getRouteRecommendation,
   listTrips,
   resolveApiUrl,
 } from "./api";
@@ -223,5 +225,43 @@ describe("errors", () => {
     expect(error).toBeInstanceOf(ApiError);
     expect(error.status).toBe(0);
     expect(error.message).toMatch(/reach the server/i);
+  });
+});
+
+describe("unsaved routes", () => {
+  const ROUTE = {
+    origin_lat: 54.3557,
+    origin_lon: 18.644,
+    destination_lat: 54.3713,
+    destination_lon: 18.6123,
+    departure_time: "08:00",
+  };
+
+  it("sends the route as query parameters", async () => {
+    const fetchMock = mockFetch(
+      json({ trip_id: null, weather: null, options: [] }),
+    );
+
+    await getRouteComparison(ROUTE);
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(url.pathname).toBe("/routes/comparison");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      origin_lat: "54.3557",
+      origin_lon: "18.644",
+      destination_lat: "54.3713",
+      destination_lon: "18.6123",
+      departure_time: "08:00",
+    });
+  });
+
+  it("omits departure_time when there isn't one", async () => {
+    const fetchMock = mockFetch(json({}));
+
+    await getRouteRecommendation({ ...ROUTE, departure_time: null });
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(url.pathname).toBe("/routes/recommendation");
+    expect(url.searchParams.has("departure_time")).toBe(false);
   });
 });
