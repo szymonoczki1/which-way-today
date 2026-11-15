@@ -100,10 +100,3 @@ The configuration is committed: [`CLAUDE.md`](CLAUDE.md) (plus
 [`/review`](.claude/commands/review.md) commands, the
 [review subagent](.claude/agents/code-reviewer.md), and
 [`settings.json`](.claude/settings.json) (allowed commands and a formatting hook).
-
-## Limitations
-
-- Ticket prices are known only for a single ZTM Gdańsk ride (4.80 PLN); others show
-  *Varies*.
-- SKM Trójmiasto isn't in the timetable data.
-- No user accounts; no combined modes (e.g. bike + train).
