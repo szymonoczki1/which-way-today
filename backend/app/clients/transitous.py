@@ -18,8 +18,7 @@ from app.clients.schemas import TransitJourney, TransitLeg
 logger = logging.getLogger(__name__)
 
 URL = "https://api.transitous.org/api/v6/plan"
-# TODO: replace the contact note with the public repo URL once it is pushed.
-USER_AGENT = "which-way-today-mvp/1.0 (student recruitment project; contact via GitHub repo)"
+USER_AGENT = "which-way-today/1.0 (+https://github.com/szymonoczki1/which-way-today)"
 # Below the comparison's 6 s deadline: a straggler shouldn't hold a pool worker long.
 TIMEOUT = httpx.Timeout(4.0, connect=2.0)
 

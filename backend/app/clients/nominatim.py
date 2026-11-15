@@ -12,8 +12,7 @@ logger = logging.getLogger(__name__)
 BASE_URL = "https://nominatim.openstreetmap.org/search"
 # Nominatim's usage policy requires a descriptive User-Agent identifying the
 # application; generic/browser-spoofing agents risk being rate-limited or blocked.
-# TODO: replace the contact note with the public repo URL once it is pushed.
-USER_AGENT = "which-way-today-mvp/1.0 (student recruitment project; contact via GitHub repo)"
+USER_AGENT = "which-way-today/1.0 (+https://github.com/szymonoczki1/which-way-today)"
 # Per-operation limits (connect, then each read), not a total cap: a server that
 # trickles bytes can exceed 8 s. Accepted for the MVP; see comparison_service for
 # how the comparison endpoint bounds its overall time.
