@@ -1,4 +1,4 @@
-"""Weather-aware "which way today?" recommendation for a saved trip.
+"""Weather-aware "which way today?" recommendation for a trip (saved or not).
 
 1. Get the trip's comparison (shared with /comparison, so the numbers match the
    cards) and, if the trip has a usual departure time, the hourly forecast for it,
@@ -69,7 +69,8 @@ def rule_based_recommendation(
 ) -> RuleResult:
     """Greenest option that suits the weather and isn't unreasonably slow.
 
-    `when` describes the weather's time for the explanation: "now" or "at 08:00".
+    `when` describes the weather's time for the explanation: "now", or e.g.
+    "tomorrow at 08:00" for a departure-time forecast.
     """
     by_mode = {o.mode: o for o in options}
     walk, bike, transit, car = (by_mode[m] for m in GREEN_FIRST)
@@ -167,7 +168,7 @@ def _condition(code: int) -> str:
 
 
 def _minutes(option: ModeOption) -> str:
-    """ "11 min", or "2 h 32 min" for long trips (same style as the frontend cards)."""
+    """Duration as "11 min", or "2 h 32 min" for long trips (as on the frontend cards)."""
     total = max(1, round(option.duration_min))
     hours, mins = divmod(total, 60)
     if hours == 0:

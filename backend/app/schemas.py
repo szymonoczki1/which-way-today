@@ -12,10 +12,10 @@ class TripBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     name: str = Field(min_length=1, max_length=100)
-    origin_address: str = Field(min_length=1)
+    origin_address: str = Field(min_length=1, max_length=200)
     origin_lat: float = Field(ge=-90, le=90)
     origin_lon: float = Field(ge=-180, le=180)
-    destination_address: str = Field(min_length=1)
+    destination_address: str = Field(min_length=1, max_length=200)
     destination_lat: float = Field(ge=-90, le=90)
     destination_lon: float = Field(ge=-180, le=180)
     usual_departure_time: time | None = None
@@ -40,8 +40,8 @@ class ModeOption(BaseModel):
     # None when unknown: public transport outside a single ZTM Gdańsk ride.
     cost_pln: float | None
     co2_g: int
-    # True when the numbers come from static factors instead of a live route
-    # (always true for transit; true for other modes if OSRM failed or timed out).
+    # True when the numbers come from static factors instead of a live route or
+    # timetable journey (the upstream call failed, timed out or found nothing).
     is_estimate: bool
     # [[lat, lon], ...] for a Leaflet Polyline: live routes, and real transit journeys
     # (all legs joined); None for estimates.

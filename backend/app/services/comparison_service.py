@@ -1,4 +1,4 @@
-"""Compare walk / bike / transit / car for a saved trip.
+"""Compare walk / bike / transit / car for a trip (saved, or checked without saving).
 
 Live data: OSRM routes (walk, bike, car), a Transitous public transport
 journey and Open-Meteo current weather, fetched concurrently under one overall

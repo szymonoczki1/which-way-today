@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 VALID_TRIP = {
@@ -27,6 +28,20 @@ def test_create_trip(client: TestClient) -> None:
     assert body["id"] is not None
     assert body["name"] == VALID_TRIP["name"]
     assert body["usual_departure_time"] == "08:00:00"
+
+
+@pytest.mark.parametrize("field", ["origin_address", "destination_address"])
+def test_create_trip_rejects_overlong_address(client: TestClient, field: str) -> None:
+    # Same 200-character limit as GET /geocode and the form inputs.
+    response = client.post("/trips", json={**VALID_TRIP, field: "x" * 201})
+
+    assert response.status_code == 422
+
+
+def test_create_trip_accepts_a_200_character_address(client: TestClient) -> None:
+    response = client.post("/trips", json={**VALID_TRIP, "origin_address": "x" * 200})
+
+    assert response.status_code == 201
 
 
 def test_create_trip_rejects_invalid_latitude(client: TestClient) -> None:

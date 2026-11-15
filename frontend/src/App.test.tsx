@@ -124,7 +124,9 @@ describe("App shell", () => {
 
     renderWithClient(<App />);
 
-    expect(await screen.findByText(/select a trip/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/check a route or select a saved trip/i),
+    ).toBeInTheDocument();
     await user.click(
       await screen.findByRole("button", { name: "Home -> Gym" }),
     );
@@ -172,7 +174,9 @@ describe("App shell", () => {
       screen.getByRole("button", { name: "Delete Home -> Pool" }),
     );
 
-    expect(await screen.findByText(/select a trip/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/check a route or select a saved trip/i),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Map of Home -> Pool")).toBeNull();
   });
 

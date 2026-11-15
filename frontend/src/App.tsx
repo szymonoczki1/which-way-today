@@ -122,7 +122,7 @@ function App() {
             </Suspense>
           ) : (
             <p className="text-sm text-slate-500">
-              Select a trip to see its route and compare ways to get there.
+              Check a route or select a saved trip to compare ways to get there.
             </p>
           )}
           {selectedTrip && <RecommendationCard tripId={selectedTrip.id} />}
