@@ -27,6 +27,20 @@ forecast for when you leave**.
 
 No configuration or API key needed.
 
+### With Docker
+
+**Requirements:** Docker (Docker Desktop, or Docker Engine with Compose).
+
+```bash
+docker compose up --build
+```
+
+Open <http://localhost:5173> and check a route, e.g. `Gdańsk Główny` →
+`Politechnika Gdańska` at `08:00`. The API runs at <http://localhost:8000> (docs:
+`/docs`).
+
+### Without Docker
+
 **Requirements:** Python 3.12, Node.js 22.12+ or 24.
 
 **1. API**: from the repo root:
@@ -47,12 +61,9 @@ npm ci
 npm run dev                        # http://localhost:5173
 ```
 
-**3.** Open <http://localhost:5173> and check a route, e.g. `Gdańsk Główny` →
-`Politechnika Gdańska` at `08:00`.
+**3.** Open <http://localhost:5173>.
 
-**Or with Docker:** `docker compose up --build` (same addresses).
-
-**Tests:** `pytest` in `backend/` (185 tests), `npm test` in `frontend/` (127 tests).
+**Tests:** `pytest` in `backend/` (186 tests), `npm test` in `frontend/` (127 tests).
 
 Optional settings are in [`.env.example`](.env.example) (e.g. `OPENAI_API_KEY`).
 
