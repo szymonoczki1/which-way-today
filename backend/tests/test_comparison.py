@@ -75,7 +75,8 @@ class TestCompareTrip:
             assert modes[green].co2_g == 0
         assert modes["car"].cost_pln == round(4.0 * comparison_service.CAR_COST_PLN_PER_KM, 2)
         assert modes["car"].co2_g == round(4.0 * comparison_service.CAR_CO2_G_PER_KM)
-        assert modes["transit"].cost_pln == comparison_service.TRANSIT_TICKET_PLN
+        # Estimated transit: operators unknown, so the fare is unknown too.
+        assert modes["transit"].cost_pln is None
         assert 0 < modes["transit"].co2_g < modes["car"].co2_g
 
     @patch(WEATHER, return_value=WEATHER_OK)
@@ -168,8 +169,8 @@ class TestCompareTrip:
             assert option.distance_km == 0
             assert option.co2_g == 0
         transit = _by_mode(result)["transit"]
-        # You still pay the fare and wait for the tram, even for a ~0 km hop.
-        assert transit.cost_pln == comparison_service.TRANSIT_TICKET_PLN
+        # Still an estimate: you'd wait for a vehicle, but the fare isn't known.
+        assert transit.cost_pln is None
         assert transit.duration_min == comparison_service.TRANSIT_OVERHEAD_MIN
 
     @patch(WEATHER, return_value=WEATHER_OK)
@@ -398,7 +399,20 @@ class TestRealTransit:
 
         assert transit.is_estimate is True
         assert transit.legs is None
-        assert transit.cost_pln == comparison_service.TRANSIT_TICKET_PLN
+        assert transit.cost_pln is None  # never claim the ZTM fare without a journey
+
+    @patch(TRANSIT, return_value=None)
+    @patch(WEATHER, return_value=None)
+    @patch(OSRM, return_value=None)
+    def test_long_estimated_trip_never_gets_the_city_ticket_price(self, *_: MagicMock) -> None:
+        # Reported bug: Transitous failed for Gdańsk -> Łódź and the estimate said 4.80 PLN.
+        lodz = TRIP.model_copy(update={"destination_lat": 51.7592, "destination_lon": 19.4560})
+
+        transit = _by_mode(compare_trip(lodz))["transit"]
+
+        assert transit.is_estimate is True
+        assert transit.distance_km > 250
+        assert transit.cost_pln is None
 
     @patch(TRANSIT)
     @patch(WEATHER, return_value=WEATHER_OK)

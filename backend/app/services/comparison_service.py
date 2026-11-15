@@ -175,7 +175,9 @@ def compare_trip(trip: Trip, deadline_s: float = DEADLINE_S) -> TripComparison:
             mode="transit",
             duration_min=round(transit_km / TRANSIT_SPEED_KMH * 60 + TRANSIT_OVERHEAD_MIN, 1),
             distance_km=transit_km,
-            cost_pln=TRANSIT_TICKET_PLN,
+            # No journey means no operators, so the fare is unknown ("Varies"): the
+            # ZTM single ticket would be wrong for anything beyond one city ride.
+            cost_pln=None,
             co2_g=round(transit_km * TRANSIT_CO2_G_PER_KM),
             is_estimate=True,
         )

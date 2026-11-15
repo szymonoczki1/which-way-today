@@ -55,7 +55,7 @@ const COMPARISON: TripComparison = {
       mode: "transit",
       duration_min: 16,
       distance_km: 2.68,
-      cost_pln: 4.8,
+      cost_pln: null,
       co2_g: 161,
       is_estimate: true,
       geometry: null,
@@ -101,7 +101,8 @@ describe("ComparisonPanel", () => {
     expect(car).toHaveTextContent("5 min");
     expect(car).toHaveTextContent("1.21 zł");
     expect(car).toHaveTextContent("456 g");
-    expect(card(/public transport/i)).toHaveTextContent("4.80 zł");
+    // Estimated transit has no known fare.
+    expect(card(/public transport/i)).toHaveTextContent("Varies");
   });
 
   it("marks only estimated modes as estimates", async () => {

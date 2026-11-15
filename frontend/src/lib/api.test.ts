@@ -111,7 +111,7 @@ describe("request helpers", () => {
             mode: "transit",
             duration_min: 16,
             distance_km: 2.68,
-            cost_pln: 4.8,
+            cost_pln: null,
             co2_g: 161,
             is_estimate: true,
             geometry: null,
